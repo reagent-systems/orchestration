@@ -139,3 +139,72 @@ The system uses environment variable substitution:
 
 1. Follow the centralized configuration pattern
 2. Use `${VARIABLE:-default}` syntax in agent-specific `.env.example` files
+
+# Task Workspace Repository
+
+This is the **separate git repository** for managing orchestration tasks and agent collaboration.
+
+## Repository Purpose
+
+This repository serves as the dedicated workspace for:
+- **Task Management**: Version-controlled task definitions and progress
+- **Agent Collaboration**: Shared workspace for multi-agent coordination  
+- **Progress Tracking**: Historical record of task completion and outcomes
+- **Inter-Agent Communication**: Shared context and handoffs between agents
+
+## Directory Structure
+
+```
+task-workspace/
+├── current_tasks/          # Active tasks being worked on
+├── completed_tasks/        # Finished tasks with outcomes
+├── shared_context/         # Cross-agent shared information
+├── agent_logs/            # Individual agent activity logs
+├── collaboration_history/ # Multi-agent coordination records
+└── task_templates/        # Reusable task definitions
+```
+
+## Git Workflow for Tasks
+
+### Task Lifecycle
+1. **Task Creation**: New branch for each major task/goal
+2. **Agent Work**: Commits tagged with agent and progress
+3. **Collaboration**: Merge branches when agents coordinate
+4. **Completion**: Merge to main with task summary
+
+### Commit Convention
+```
+[AGENT-NAME] Task action: Brief description
+
+- Progress: X% complete
+- Status: in-progress|blocked|completed
+- Next: What's needed next
+- Collaborators: Other agents involved
+```
+
+### Branch Strategy
+- `main`: Stable completed tasks
+- `task/[goal-name]`: Individual task branches
+- `collab/[agent1-agent2]`: Agent collaboration branches
+
+## Integration with Main Orchestration Repo
+
+This repository is linked to the main orchestration system via:
+- **Git Submodule**: Referenced from main repo
+- **Environment Variables**: Path configuration in `.env`
+- **Agent Configuration**: All agents point to this shared workspace
+
+## Usage
+
+Agents automatically:
+- Clone/pull this repository for task access
+- Commit progress with standardized messages
+- Create branches for new goals/collaborations
+- Merge completed work back to main branch
+
+This separation allows:
+- ✅ **Clean task versioning** independent of orchestration code
+- ✅ **Shared workspace** across all agents
+- ✅ **Task history tracking** with full git capabilities
+- ✅ **Collaboration records** between agents
+- ✅ **Backup and sync** of task data
