@@ -15,7 +15,7 @@ import argparse
 
 
 class TaskRepoManager:
-    def __init__(self, task_repo_path="./task-workspace"):
+    def __init__(self, task_repo_path="./workspace"):
         self.task_repo_path = Path(task_repo_path)
         self.current_tasks_dir = self.task_repo_path / "current_tasks"
         self.completed_tasks_dir = self.task_repo_path / "completed_tasks"
@@ -197,7 +197,7 @@ class TaskRepoManager:
 
 def main():
     parser = argparse.ArgumentParser(description="Task Repository Manager")
-    parser.add_argument("--repo-path", default="./task-workspace", help="Path to task repository")
+    parser.add_argument("--repo-path", default="./workspace", help="Path to task repository")
     
     subparsers = parser.add_subparsers(dest="command", help="Commands")
     
