@@ -22,13 +22,14 @@ The system uses a centralized configuration approach with environment variable s
 ### Setup
 
 1. **Configure Root Environment**:
+
    ```bash
    # Copy and edit the root .env file
    cp .env.example .env
    # Edit .env with your actual API keys and settings
    ```
-
 2. **Configure Individual Agents**:
+
    ```bash
    # Each agent directory has its own .env.example
    cd search-app/app
@@ -42,7 +43,6 @@ The system uses a centralized configuration approach with environment variable s
 orchestration/
 ├── .env                    # Root configuration (shared)
 ├── .env.example           # Root configuration template
-├── load_env.py            # Simple environment loader utility
 ├── search-app/
 │   └── app/
 │       ├── env.example    # Uses ${VARIABLE:-default} syntax
@@ -104,7 +104,6 @@ python -m google.generativeai.agent
 orchestration/
 ├── .env                           # Root configuration
 ├── .env.example                   # Root configuration template
-├── load_env.py                    # Simple environment loader
 ├── exploration/                   # Research and analysis
 ├── metacognition-agent/           # Main orchestrator
 ├── search-app/                    # Search capabilities
@@ -115,6 +114,7 @@ orchestration/
 ## 🔗 Agent Communication
 
 Agents communicate through:
+
 - **A2A Protocol** - For external agent discovery and coordination
 - **HTTP Endpoints** - For direct agent-to-agent communication
 - **Git Workspace** - For persistent task tracking and coordination
@@ -124,20 +124,14 @@ Agents communicate through:
 ### Environment Variables
 
 The system uses environment variable substitution:
+
 - `${VARIABLE_NAME:-default_value}` - Use value from root .env or default
 - Individual agents can override any setting in their local `.env`
-
-### Testing Configuration
-
-```bash
-# Test configuration loading
-python3 load_env.py
-```
 
 ## 📚 Documentation
 
 - [Metacognition Agent](./metacognition-agent/README.md) - Main orchestrator
-- [Search Agent](./search-app/README.md) - Web search capabilities  
+- [Search Agent](./search-app/README.md) - Web search capabilities
 - [Read-Write Agent](./read-write-app/README.md) - File operations
 - [Exploration](./exploration/README.md) - Research and analysis
 
@@ -145,4 +139,3 @@ python3 load_env.py
 
 1. Follow the centralized configuration pattern
 2. Use `${VARIABLE:-default}` syntax in agent-specific `.env.example` files
-3. Test configuration with `python3 load_env.py` 
