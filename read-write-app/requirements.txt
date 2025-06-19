@@ -1,5 +1,5 @@
 # ADK Framework
-google-adk>=0.1.0
+google-adk>=1.3.0
 
 # A2A Protocol SDK
 a2a-sdk>=0.2.0
@@ -11,10 +11,12 @@ GitPython>=3.1.0
 pathlib2>=2.3.0
 PyYAML>=6.0
 
-# Additional dependencies for streaming and async operations
+# Environment and configuration
+python-dotenv>=0.19.0
+
+# Async operations
 aiohttp>=3.8.0
 asyncio
-python-dotenv>=0.19.0
 
 # Optional: For enhanced functionality
 structlog>=21.0.0

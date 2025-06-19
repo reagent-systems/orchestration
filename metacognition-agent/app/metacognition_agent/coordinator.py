@@ -7,7 +7,7 @@ import os
 import asyncio
 from typing import Dict, List, Optional, Any
 from google.adk.agents import Agent, SequentialAgent, ParallelAgent, LoopAgent
-from google.adk.tools import AgentTool
+from google.adk.tools.agent_tool import AgentTool
 
 # Import our custom components
 from .tools import metacognition_tools

@@ -1,6 +1,6 @@
 """
-Metacognition Agent Tools
-Provides tools for task planning, agent orchestration, and progress monitoring
+Metacognition Tools for Orchestration
+Provides tools for task planning, agent orchestration, progress monitoring, reflection, and git-based tracking
 """
 
 import os
@@ -9,7 +9,7 @@ import json
 import aiohttp
 from typing import Dict, List, Optional, Any, Tuple
 from google.adk.tools import FunctionTool
-from google.adk.annotations import Schema
+# from google.adk.annotations import Schema  # <-- Removed, not available in ADK 1.3.0
 
 # Import our custom components
 from .metacognition import metacognition_engine, ReflectionType
@@ -33,17 +33,23 @@ class MetacognitionTools:
         }
         self.agent_performance = {}
     
-    @FunctionTool(
-        name="create_orchestration_task",
-        description="Create a new orchestration task with planning and tracking"
-    )
+    @FunctionTool
     def create_orchestration_task(
         self,
-        task_description: str = Schema(description="Description of the task to be orchestrated"),
-        user_request: str = Schema(description="Original user request"),
-        estimated_steps: int = Schema(description="Estimated number of steps needed", default=10)
+        task_description: str,
+        user_request: str,
+        estimated_steps: int = 10
     ) -> Dict[str, Any]:
-        """Create a new orchestration task with git-based tracking"""
+        """Create a new orchestration task with git-based tracking
+        
+        Args:
+            task_description: Description of the task to be orchestrated
+            user_request: Original user request
+            estimated_steps: Estimated number of steps needed (default: 10)
+            
+        Returns:
+            Dict containing task creation results
+        """
         try:
             # Create task in tracker
             task_id = task_tracker.create_task(task_description, user_request, estimated_steps)
@@ -77,17 +83,23 @@ class MetacognitionTools:
         except Exception as e:
             return {"error": f"Failed to create task: {str(e)}"}
     
-    @FunctionTool(
-        name="plan_task_execution",
-        description="Plan the execution steps for a given task"
-    )
+    @FunctionTool
     def plan_task_execution(
         self,
-        task_id: str = Schema(description="ID of the task to plan"),
-        task_description: str = Schema(description="Description of the task"),
-        available_resources: List[str] = Schema(description="List of available agents and resources", default=None)
+        task_id: str,
+        task_description: str,
+        available_resources: Optional[List[str]] = None
     ) -> Dict[str, Any]:
-        """Plan the execution steps for a task"""
+        """Plan the execution steps for a given task
+        
+        Args:
+            task_id: ID of the task to plan
+            task_description: Description of the task
+            available_resources: List of available agents and resources
+            
+        Returns:
+            Dict containing execution plan
+        """
         try:
             if task_id not in task_tracker.task_executions:
                 return {"error": f"Task {task_id} not found"}
@@ -137,16 +149,21 @@ class MetacognitionTools:
         except Exception as e:
             return {"error": f"Failed to plan task: {str(e)}"}
     
-    @FunctionTool(
-        name="execute_task_step",
-        description="Execute a specific step in a task"
-    )
+    @FunctionTool
     async def execute_task_step(
         self,
-        task_id: str = Schema(description="ID of the task"),
-        step_id: str = Schema(description="ID of the step to execute")
+        task_id: str,
+        step_id: str
     ) -> Dict[str, Any]:
-        """Execute a specific step in a task"""
+        """Execute a specific step in a task
+        
+        Args:
+            task_id: ID of the task
+            step_id: ID of the step to execute
+            
+        Returns:
+            Dict containing execution results
+        """
         try:
             task = task_tracker.get_task(task_id)
             if not task:
@@ -206,15 +223,19 @@ class MetacognitionTools:
         except Exception as e:
             return {"error": f"Failed to execute step: {str(e)}"}
     
-    @FunctionTool(
-        name="monitor_task_progress",
-        description="Monitor the progress of a task and provide insights"
-    )
+    @FunctionTool
     def monitor_task_progress(
         self,
-        task_id: str = Schema(description="ID of the task to monitor")
+        task_id: str
     ) -> Dict[str, Any]:
-        """Monitor task progress and provide insights"""
+        """Monitor the progress of a task and provide insights
+        
+        Args:
+            task_id: ID of the task to monitor
+            
+        Returns:
+            Dict containing progress report
+        """
         try:
             task = task_tracker.get_task(task_id)
             if not task:
@@ -270,15 +291,19 @@ class MetacognitionTools:
         except Exception as e:
             return {"error": f"Failed to monitor progress: {str(e)}"}
     
-    @FunctionTool(
-        name="assess_task_completion",
-        description="Assess whether a task is complete and provide final evaluation"
-    )
+    @FunctionTool
     def assess_task_completion(
         self,
-        task_id: str = Schema(description="ID of the task to assess")
+        task_id: str
     ) -> Dict[str, Any]:
-        """Assess task completion and provide final evaluation"""
+        """Assess whether a task is complete and provide final evaluation
+        
+        Args:
+            task_id: ID of the task to assess
+            
+        Returns:
+            Dict containing completion assessment
+        """
         try:
             task = task_tracker.get_task(task_id)
             if not task:
@@ -326,12 +351,13 @@ class MetacognitionTools:
         except Exception as e:
             return {"error": f"Failed to assess completion: {str(e)}"}
     
-    @FunctionTool(
-        name="get_agent_performance",
-        description="Get performance metrics for all agents"
-    )
+    @FunctionTool
     def get_agent_performance(self) -> Dict[str, Any]:
-        """Get performance metrics for all agents"""
+        """Get performance metrics for all agents
+        
+        Returns:
+            Dict containing agent performance data
+        """
         try:
             performance_data = {}
             

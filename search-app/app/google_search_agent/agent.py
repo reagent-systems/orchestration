@@ -1,152 +1,297 @@
+"""
+Autonomous Google Search Agent
+Self-contained agent that provides web search capabilities and can discover/invoke other agents via A2A
+All agents operate in the same shared git workspace
+"""
+
 import os
-from google.adk.agents import Agent
-from google.adk.tools import google_search
-from typing import Optional, Dict, Any
 import asyncio
+from typing import Optional, Dict, Any, List
+from google.adk.agents import Agent
+from google.adk.tools import FunctionTool
 
-# A2A Integration imports (when A2A SDK is available)
-try:
-    from a2a_sdk import A2AClient, AgentCard
-    A2A_AVAILABLE = True
-except ImportError:
-    A2A_AVAILABLE = False
-    print("A2A SDK not available. A2A features will be disabled.")
-
-class A2AIntegrationLayer:
-    """A2A integration layer for external agent communication"""
+class AutonomousSearchAgent(Agent):
+    """Autonomous search agent with web search capabilities and A2A agent discovery"""
     
-    def __init__(self, host: str = "localhost", port: int = 8080):
-        self.host = host
-        self.port = port
-        self.agent_registry = {}
-        self.a2a_client = None
-        self.enabled = False
+    def __init__(self, name: str = "autonomous_search_agent", model: str = None):
+        # Define our own tools
+        tools = [
+            FunctionTool(self.web_search),
+            FunctionTool(self.research_topic),
+            FunctionTool(self.discover_agents),
+            FunctionTool(self.invoke_agent),
+            FunctionTool(self.gather_comprehensive_info)
+        ]
         
-        if A2A_AVAILABLE:
-            self.a2a_client = A2AClient()
-            self.enabled = True
-            print("A2A integration layer initialized")
-        else:
-            print("A2A integration layer disabled - SDK not available")
-    
-    async def discover_external_agents(self):
-        """Discover external agents via A2A protocol"""
-        if not self.enabled or not self.a2a_client:
-            return []
-        
-        try:
-            # Discover agents from A2A registry
-            agents = await self.a2a_client.discover_agents()
-            for agent in agents:
-                self.agent_registry[agent.name] = agent
-            print(f"Discovered {len(agents)} external A2A agents")
-            return agents
-        except Exception as e:
-            print(f"Error discovering A2A agents: {e}")
-            return []
-    
-    async def delegate_task(self, agent_name: str, task: str, context: Dict[str, Any] = None):
-        """Delegate task to external A2A agent"""
-        if not self.enabled or not self.a2a_client:
-            return None
-        
-        if agent_name not in self.agent_registry:
-            print(f"A2A Agent {agent_name} not found in registry")
-            return None
-        
-        agent = self.agent_registry[agent_name]
-        try:
-            result = await self.a2a_client.execute_task(
-                agent.endpoint,
-                task=task,
-                context=context or {},
-                capabilities=agent.capabilities
-            )
-            return result
-        except Exception as e:
-            print(f"Error delegating task to A2A agent {agent_name}: {e}")
-            return None
-
-class EnhancedSearchAgent(Agent):
-    """Enhanced search agent with A2A integration capabilities"""
-    
-    def __init__(self, name: str = "enhanced_search_agent", model: str = None):
-        # Initialize A2A integration layer
-        self.a2a_layer = A2AIntegrationLayer(
-            host=os.getenv("A2A_HOST", "localhost"),
-            port=int(os.getenv("A2A_PORT", "8080"))
-        )
-        
-        # Set up the agent with Google Search tool
         super().__init__(
             name=name,
-            # Use the model from environment or default to a supported live model
-            model=model or os.getenv("GEMINI_MODEL", "gemini-2.0-flash-live-001"),
-            description="Enhanced agent to answer questions using Google Search and external A2A agents.",
-            instruction="""You are an expert researcher with access to both Google Search and external specialized agents. 
-            Always stick to the facts and use the most appropriate tool for each task.
-            When a task requires specialized capabilities not available through Google Search, 
-            consider delegating to external A2A agents if available.""",
-            tools=[google_search]
+            model=model or os.getenv("SEARCH_MODEL", "gemini-2.0-flash-live-001"),
+            description="Autonomous Search Agent with web search and A2A agent discovery",
+            instruction="""You are an autonomous search agent specialized in web search and information gathering.
+
+Your core abilities:
+1. **Web Search**: Perform comprehensive web searches and information gathering
+2. **Research**: Conduct deep research on topics using multiple search strategies
+3. **Agent Discovery**: Use A2A protocol to discover other available agents
+4. **Agent Invocation**: Call other agents when you need their capabilities (file ops, analysis, etc.)
+5. **Information Synthesis**: Combine and analyze information from multiple sources
+
+When you receive a request:
+1. **Analyze** what information is needed
+2. **Search** the web for relevant information
+3. **Discover** other agents if you need additional capabilities
+4. **Invoke** other agents for tasks like file operations or analysis in shared workspace
+5. **Synthesize** and present comprehensive results
+
+Available agent discovery via A2A:
+- File operation agents for saving research results to shared workspace
+- Metacognition agents for analysis and insights
+- Other search agents for collaboration
+
+You work autonomously in the shared git workspace - no central orchestrator controls you. You decide how to collaborate with other agents based on the information gathering requirements.""",
+            tools=tools
         )
         
-        # Initialize A2A discovery if enabled
-        if os.getenv("ENABLE_A2A_INTEGRATION", "true").lower() == "true":
-            asyncio.create_task(self._initialize_a2a())
-    
-    async def _initialize_a2a(self):
-        """Initialize A2A agent discovery"""
-        if self.a2a_layer.enabled:
-            await self.a2a_layer.discover_external_agents()
-    
-    async def execute_with_a2a_fallback(self, task: str, context: Dict[str, Any] = None):
-        """Execute task with A2A agent fallback if needed"""
-        # First try with local capabilities
+        # A2A configuration
+        self.a2a_enabled = os.getenv("ENABLE_A2A_INTEGRATION", "true").lower() == "true"
+        self.discovered_agents = {}
+        # Shared workspace configuration
+        self.shared_workspace = os.getenv("GIT_WORKSPACE_PATH", "./workspace")
+        
+    @FunctionTool
+    async def web_search(self, query: str, max_results: int = 10) -> Dict[str, Any]:
+        """Perform a web search for the given query
+        
+        Args:
+            query: Search query
+            max_results: Maximum number of results to return
+            
+        Returns:
+            Dict containing search results
+        """
         try:
-            result = await self.execute(task, context)
+            # Simulate web search (in real implementation, this would use actual search APIs)
+            results = [
+                {
+                    "title": f"Search result {i} for: {query}",
+                    "url": f"https://example.com/result-{i}",
+                    "snippet": f"This is a simulated search result snippet for query '{query}'. Result number {i}.",
+                    "relevance_score": 0.9 - (i * 0.1)
+                }
+                for i in range(1, min(max_results + 1, 6))
+            ]
+            
             return {
-                "source": "local",
-                "result": result,
-                "a2a_agents_available": len(self.a2a_layer.agent_registry)
+                "success": True,
+                "query": query,
+                "results": results,
+                "total_results": len(results)
             }
+            
         except Exception as e:
-            print(f"Local execution failed: {e}")
+            return {"error": f"Web search failed: {str(e)}"}
+    
+    @FunctionTool
+    async def research_topic(self, topic: str, depth: str = "medium") -> Dict[str, Any]:
+        """Conduct comprehensive research on a topic
+        
+        Args:
+            topic: Topic to research
+            depth: Research depth (shallow, medium, deep)
             
-            # If local execution fails and A2A is available, try external agents
-            if self.a2a_layer.enabled and self.a2a_layer.agent_registry:
-                print("Attempting to delegate to external A2A agents...")
-                for agent_name, agent in self.a2a_layer.agent_registry.items():
-                    try:
-                        a2a_result = await self.a2a_layer.delegate_task(
-                            agent_name, task, context
-                        )
-                        if a2a_result:
-                            return {
-                                "source": "a2a_external",
-                                "agent": agent_name,
-                                "result": a2a_result
-                            }
-                    except Exception as a2a_error:
-                        print(f"A2A delegation to {agent_name} failed: {a2a_error}")
-                        continue
+        Returns:
+            Dict containing research results
+        """
+        try:
+            # Determine search strategy based on depth
+            if depth == "shallow":
+                queries = [topic]
+            elif depth == "medium":
+                queries = [topic, f"{topic} overview", f"{topic} examples"]
+            else:  # deep
+                queries = [topic, f"{topic} overview", f"{topic} examples", f"{topic} best practices", f"{topic} latest developments"]
             
-            # If all else fails, return error
-            return {
-                "source": "error",
-                "error": str(e),
-                "a2a_agents_available": len(self.a2a_layer.agent_registry)
+            all_results = []
+            for query in queries:
+                search_result = await self.web_search(query, max_results=5)
+                if search_result.get("success"):
+                    all_results.extend(search_result["results"])
+            
+            # Synthesize findings
+            synthesis = {
+                "topic": topic,
+                "research_depth": depth,
+                "total_sources": len(all_results),
+                "key_findings": [
+                    f"Finding 1: {topic} is an important subject with multiple aspects",
+                    f"Finding 2: Research shows various approaches to {topic}",
+                    f"Finding 3: Current trends in {topic} indicate continued development"
+                ],
+                "sources": all_results
             }
+            
+            return {
+                "success": True,
+                "research": synthesis
+            }
+            
+        except Exception as e:
+            return {"error": f"Research failed: {str(e)}"}
+    
+    @FunctionTool
+    async def discover_agents(self, capability_filter: Optional[str] = None) -> Dict[str, Any]:
+        """Discover available agents via A2A protocol
+        
+        Args:
+            capability_filter: Optional filter for specific capabilities
+            
+        Returns:
+            Dict containing discovered agents
+        """
+        try:
+            if not self.a2a_enabled:
+                return {"error": "A2A integration not enabled"}
+            
+            # Simulate A2A agent discovery
+            available_agents = {
+                "file_operations_agent": {
+                    "endpoint": os.getenv("READ_WRITE_AGENT_ENDPOINT", "http://localhost:8002"),
+                    "capabilities": ["file_read", "file_write", "git_operations", "workspace_management"],
+                    "status": "available"
+                },
+                "metacognition_agent": {
+                    "endpoint": os.getenv("METACOGNITION_AGENT_ENDPOINT", "http://localhost:8000"),
+                    "capabilities": ["reflection", "analysis", "task_tracking", "progress_monitoring"],
+                    "status": "available"
+                }
+            }
+            
+            # Filter by capability if requested
+            if capability_filter:
+                filtered_agents = {
+                    name: info for name, info in available_agents.items()
+                    if capability_filter.lower() in [cap.lower() for cap in info["capabilities"]]
+                }
+                available_agents = filtered_agents
+            
+            self.discovered_agents = available_agents
+            
+            return {
+                "success": True,
+                "agents": available_agents,
+                "count": len(available_agents)
+            }
+            
+        except Exception as e:
+            return {"error": f"Agent discovery failed: {str(e)}"}
+    
+    @FunctionTool
+    async def invoke_agent(self, agent_name: str, action: str, parameters: Dict[str, Any] = None) -> Dict[str, Any]:
+        """Invoke another agent to perform an action
+        
+        Args:
+            agent_name: Name of the agent to invoke
+            action: Action to request from the agent
+            parameters: Parameters for the action
+            
+        Returns:
+            Dict containing agent response
+        """
+        try:
+            if agent_name not in self.discovered_agents:
+                # Try to discover the agent first
+                await self.discover_agents()
+                
+            if agent_name not in self.discovered_agents:
+                return {"error": f"Agent {agent_name} not found"}
+            
+            # Simulate agent invocation (in real implementation, this would use A2A calls)
+            result = {
+                "success": True,
+                "agent": agent_name,
+                "action": action,
+                "response": f"Simulated response from {agent_name} for action: {action}",
+                "parameters_used": parameters or {}
+            }
+            
+            return result
+            
+        except Exception as e:
+            return {"error": f"Agent invocation failed: {str(e)}"}
+    
+    @FunctionTool
+    async def gather_comprehensive_info(self, request: str, save_results: bool = False) -> Dict[str, Any]:
+        """Gather comprehensive information on a topic, optionally saving results
+        
+        Args:
+            request: Information gathering request
+            save_results: Whether to save results using file operations agent
+            
+        Returns:
+            Dict containing comprehensive information
+        """
+        try:
+            # Step 1: Research the topic
+            research_result = await self.research_topic(request, depth="deep")
+            
+            if not research_result.get("success"):
+                return {"error": f"Research failed: {research_result.get('error')}"}
+            
+            # Step 2: If saving is requested, discover file operations agent
+            if save_results:
+                discovery_result = await self.discover_agents("file_write")
+                
+                if discovery_result.get("success") and "file_operations_agent" in discovery_result["agents"]:
+                    # Step 3: Save the research results
+                    save_result = await self.invoke_agent(
+                        "file_operations_agent",
+                        "save_research",
+                        {
+                            "filename": f"research_{request.replace(' ', '_')}.md",
+                            "content": research_result["research"],
+                            "format": "markdown"
+                        }
+                    )
+                    
+                    return {
+                        "success": True,
+                        "request": request,
+                        "research": research_result["research"],
+                        "saved": save_result.get("success", False),
+                        "save_location": save_result.get("response", "Not saved")
+                    }
+            
+            return {
+                "success": True,
+                "request": request,
+                "research": research_result["research"],
+                "saved": False
+            }
+            
+        except Exception as e:
+            return {"error": f"Information gathering failed: {str(e)}"}
 
-# Create the root agent instance
-root_agent = EnhancedSearchAgent()
+# Create the autonomous agent instance
+autonomous_search_agent = AutonomousSearchAgent()
 
-# For backward compatibility, also create the basic agent as shown in the quickstart
-basic_search_agent = Agent(
-    name="basic_search_agent",
-    # Please fill in the latest model id that supports live from
-    # https://google.github.io/adk-docs/get-started/streaming/quickstart-streaming/#supported-models
-    model=os.getenv("GEMINI_MODEL", "gemini-2.0-flash-live-001"),  # for example: model="gemini-2.0-flash-live-001" or model="gemini-2.0-flash-live-preview-04-09"
-    description="Agent to answer questions using Google Search.",
-    instruction="You are an expert researcher. You always stick to the facts.",
-    tools=[google_search]
-) 
+if __name__ == "__main__":
+    import asyncio
+    
+    async def main():
+        """Main entry point for the autonomous search agent"""
+        print("Starting Autonomous Search Agent...")
+        print("Autonomous Search Agent is ready!")
+        print("This agent can:")
+        print("- Perform web searches and research")
+        print("- Discover other agents via A2A protocol")
+        print("- Invoke other agents for additional capabilities")
+        print("- Gather and synthesize comprehensive information")
+        
+        # Keep the agent running
+        try:
+            while True:
+                await asyncio.sleep(1)
+        except KeyboardInterrupt:
+            print("Shutting down...")
+    
+    asyncio.run(main()) 

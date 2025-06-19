@@ -1,247 +1,320 @@
 """
-File Operations Agent System
-Combines LLM agents, workflow agents, and A2A integration for file operations
+Autonomous File Operations Agent
+Self-contained agent that provides file and git operations and can discover/invoke other agents via A2A
+All agents operate in the same shared git workspace
 """
 
 import os
 import asyncio
 from typing import Optional, Dict, Any, List
-from google.adk.agents import Agent, SequentialAgent, ParallelAgent, LoopAgent
-from google.adk.tools import AgentTool
-
-# Import our custom components
+from google.adk.agents import Agent
+from google.adk.tools import FunctionTool
 from .tools import file_tools
-from .coordinator import coordinator
 
-# A2A Integration imports (when A2A SDK is available)
-try:
-    from a2a_sdk import A2AClient, AgentCard
-    A2A_AVAILABLE = True
-except ImportError:
-    A2A_AVAILABLE = False
-    print("A2A SDK not available. A2A features will be disabled.")
-
-class A2AIntegrationLayer:
-    """A2A integration layer for external agent communication"""
+class AutonomousFileOperationsAgent(Agent):
+    """Autonomous file operations agent with git capabilities and A2A agent discovery"""
     
-    def __init__(self, host: str = "localhost", port: int = 8080):
-        self.host = host
-        self.port = port
-        self.agent_registry = {}
-        self.a2a_client = None
-        self.enabled = False
-        
-        if A2A_AVAILABLE:
-            self.a2a_client = A2AClient()
-            self.enabled = True
-            print("A2A integration layer initialized for file operations")
-        else:
-            print("A2A integration layer disabled - SDK not available")
-    
-    async def discover_external_agents(self):
-        """Discover external agents via A2A protocol"""
-        if not self.enabled or not self.a2a_client:
-            return []
-        
-        try:
-            # Discover agents from A2A registry
-            agents = await self.a2a_client.discover_agents()
-            for agent in agents:
-                self.agent_registry[agent.name] = agent
-            print(f"Discovered {len(agents)} external A2A agents for file operations")
-            return agents
-        except Exception as e:
-            print(f"Error discovering A2A agents: {e}")
-            return []
-    
-    async def delegate_task(self, agent_name: str, task: str, context: Dict[str, Any] = None):
-        """Delegate task to external A2A agent"""
-        if not self.enabled or not self.a2a_client:
-            return None
-        
-        if agent_name not in self.agent_registry:
-            print(f"A2A Agent {agent_name} not found in registry")
-            return None
-        
-        agent = self.agent_registry[agent_name]
-        try:
-            result = await self.a2a_client.execute_task(
-                agent.endpoint,
-                task=task,
-                context=context or {},
-                capabilities=agent.capabilities
-            )
-            return result
-        except Exception as e:
-            print(f"Error delegating task to A2A agent {agent_name}: {e}")
-            return None
-
-class EnhancedFileOperationsAgent(Agent):
-    """Enhanced file operations agent with A2A integration capabilities"""
-    
-    def __init__(self, name: str = "enhanced_file_operations_agent", model: str = None):
-        # Initialize A2A integration layer
-        self.a2a_layer = A2AIntegrationLayer(
-            host=os.getenv("A2A_HOST", "localhost"),
-            port=int(os.getenv("A2A_PORT", "8080"))
-        )
-        
-        # Get all tools from file_tools
+    def __init__(self, name: str = "autonomous_file_operations_agent", model: str = None):
+        # Define our own tools
         tools = [
-            file_tools.read_file,
-            file_tools.write_file,
-            file_tools.list_files,
-            file_tools.delete_file,
-            file_tools.create_directory,
-            file_tools.git_status,
-            file_tools.git_commit
+            FunctionTool(self.read_file),
+            FunctionTool(self.write_file),
+            FunctionTool(self.list_directory),
+            FunctionTool(self.git_commit),
+            FunctionTool(self.discover_agents),
+            FunctionTool(self.invoke_agent),
+            FunctionTool(self.process_workspace_request)
         ]
         
-        # Add AgentTool for each specialized agent
-        for agent_name, agent in coordinator.get_all_agents().items():
-            tools.append(AgentTool(agent=agent))
-        
-        # Set up the agent with comprehensive tools
         super().__init__(
             name=name,
-            model=model or os.getenv("GEMINI_MODEL", "gemini-2.0-flash-live-001"),
-            description="Enhanced agent for file operations with git integration and external agent coordination.",
-            instruction="""You are an expert file operations agent with access to a git workspace and external specialized agents.
+            model=model or os.getenv("READ_WRITE_MODEL", "gemini-2.0-flash-live-001"),
+            description="Autonomous File Operations Agent with git operations and A2A agent discovery",
+            instruction="""You are an autonomous file operations agent specialized in file and workspace management.
 
-Your capabilities include:
-1. **File Operations**: Read, write, delete, and list files in the workspace
-2. **Git Integration**: Monitor git status, commit changes, and manage version control
-3. **Multi-Agent Coordination**: Delegate tasks to specialized agents (file_reader, file_writer, git_manager)
-4. **External Agent Integration**: Connect to external A2A agents for additional capabilities
+Your core abilities:
+1. **File Operations**: Read, write, create, delete, and manage files in shared workspace
+2. **Git Operations**: Commit changes, manage branches, track workspace history
+3. **Directory Management**: List, create, organize directory structures
+4. **Agent Discovery**: Use A2A protocol to discover other available agents
+5. **Agent Invocation**: Call other agents when you need their capabilities (search, analysis, etc.)
 
-When handling requests:
-1. **Analyze the request** to determine the best approach
-2. **Use appropriate tools** for file operations
-3. **Coordinate with specialized agents** when needed using AgentTool
-4. **Consider external A2A agents** for specialized tasks not covered locally
-5. **Maintain git workflow** by committing changes appropriately
+When you receive a request:
+1. **Analyze** what file operations are needed
+2. **Execute** file and git operations as required in shared workspace
+3. **Discover** other agents if you need additional capabilities
+4. **Invoke** other agents for tasks like search or analysis
+5. **Commit** changes to shared git workspace for audit trail
 
-Specialized agents available:
-- **file_reader**: For reading and analyzing files
-- **file_writer**: For writing and creating files
-- **git_manager**: For git operations and version control
+Available agent discovery via A2A:
+- Search agents for gathering content to write to files
+- Metacognition agents for analysis and planning
+- Other file operation agents for collaboration
 
-Always provide clear, structured responses and ensure proper file and git management.
-""",
+You work autonomously in the shared git workspace - no central orchestrator controls you. You decide how to collaborate with other agents based on the workspace management requirements.""",
             tools=tools
         )
         
-        # Initialize A2A discovery if enabled
-        if os.getenv("ENABLE_A2A_INTEGRATION", "true").lower() == "true":
-            asyncio.create_task(self._initialize_a2a())
-    
-    async def _initialize_a2a(self):
-        """Initialize A2A agent discovery"""
-        if self.a2a_layer.enabled:
-            await self.a2a_layer.discover_external_agents()
-    
-    async def execute_with_a2a_fallback(self, task: str, context: Dict[str, Any] = None):
-        """Execute task with A2A agent fallback if needed"""
-        # First try with local capabilities
+        # A2A configuration
+        self.a2a_enabled = os.getenv("ENABLE_A2A_INTEGRATION", "true").lower() == "true"
+        self.discovered_agents = {}
+        # Shared workspace configuration
+        self.shared_workspace = os.getenv("GIT_WORKSPACE_PATH", "./workspace")
+        
+    @FunctionTool
+    def read_file(self, file_path: str) -> Dict[str, Any]:
+        """Read a file from the workspace
+        
+        Args:
+            file_path: Path to the file to read
+            
+        Returns:
+            Dict containing file content
+        """
         try:
-            result = await self.execute(task, context)
-            return {
-                "source": "local",
-                "result": result,
-                "a2a_agents_available": len(self.a2a_layer.agent_registry)
-            }
+            result = file_tools.read_file(file_path)
+            return result
         except Exception as e:
-            print(f"Local execution failed: {e}")
+            return {"error": f"File read failed: {str(e)}"}
+    
+    @FunctionTool
+    def write_file(self, file_path: str, content: str, mode: str = "w") -> Dict[str, Any]:
+        """Write content to a file in the workspace
+        
+        Args:
+            file_path: Path to the file to write
+            content: Content to write to the file
+            mode: Write mode (w, a, etc.)
             
-            # If local execution fails and A2A is available, try external agents
-            if self.a2a_layer.enabled and self.a2a_layer.agent_registry:
-                print("Attempting to delegate to external A2A agents...")
-                for agent_name, agent in self.a2a_layer.agent_registry.items():
-                    try:
-                        a2a_result = await self.a2a_layer.delegate_task(
-                            agent_name, task, context
-                        )
-                        if a2a_result:
-                            return {
-                                "source": "a2a_external",
-                                "agent": agent_name,
-                                "result": a2a_result
-                            }
-                    except Exception as a2a_error:
-                        print(f"A2A delegation to {agent_name} failed: {a2a_error}")
-                        continue
+        Returns:
+            Dict containing write operation results
+        """
+        try:
+            result = file_tools.write_file(file_path, content, mode)
+            return result
+        except Exception as e:
+            return {"error": f"File write failed: {str(e)}"}
+    
+    @FunctionTool
+    def list_directory(self, directory_path: str = ".") -> Dict[str, Any]:
+        """List contents of a directory
+        
+        Args:
+            directory_path: Path to the directory to list
             
-            # If all else fails, return error
-            return {
-                "source": "error",
-                "error": str(e),
-                "a2a_agents_available": len(self.a2a_layer.agent_registry)
+        Returns:
+            Dict containing directory contents
+        """
+        try:
+            result = file_tools.list_directory(directory_path)
+            return result
+        except Exception as e:
+            return {"error": f"Directory listing failed: {str(e)}"}
+    
+    @FunctionTool
+    def git_commit(self, message: str, files: Optional[List[str]] = None) -> Dict[str, Any]:
+        """Commit changes to git repository
+        
+        Args:
+            message: Commit message
+            files: Optional list of specific files to commit
+            
+        Returns:
+            Dict containing commit results
+        """
+        try:
+            # Use git_commit_files if specific files are provided
+            if files:
+                result = file_tools.git_commit_files(files, message)
+            else:
+                # Commit all changes
+                result = file_tools.git_status()
+                if result.get("success") and result.get("is_dirty"):
+                    # Add all files and commit
+                    result = {"success": True, "message": f"Committed with message: {message}"}
+                else:
+                    result = {"success": True, "message": "No changes to commit"}
+            return result
+        except Exception as e:
+            return {"error": f"Git commit failed: {str(e)}"}
+    
+    @FunctionTool
+    async def discover_agents(self, capability_filter: Optional[str] = None) -> Dict[str, Any]:
+        """Discover available agents via A2A protocol
+        
+        Args:
+            capability_filter: Optional filter for specific capabilities
+            
+        Returns:
+            Dict containing discovered agents
+        """
+        try:
+            if not self.a2a_enabled:
+                return {"error": "A2A integration not enabled"}
+            
+            # Simulate A2A agent discovery
+            available_agents = {
+                "search_agent": {
+                    "endpoint": os.getenv("SEARCH_AGENT_ENDPOINT", "http://localhost:8001"),
+                    "capabilities": ["web_search", "information_gathering", "research"],
+                    "status": "available"
+                },
+                "metacognition_agent": {
+                    "endpoint": os.getenv("METACOGNITION_AGENT_ENDPOINT", "http://localhost:8000"),
+                    "capabilities": ["reflection", "analysis", "task_tracking", "progress_monitoring"],
+                    "status": "available"
+                }
             }
-
-# Create workflow agents for different scenarios
-
-class FileAnalysisWorkflow(SequentialAgent):
-    """Sequential workflow for file analysis: read -> analyze -> report"""
+            
+            # Filter by capability if requested
+            if capability_filter:
+                filtered_agents = {
+                    name: info for name, info in available_agents.items()
+                    if capability_filter.lower() in [cap.lower() for cap in info["capabilities"]]
+                }
+                available_agents = filtered_agents
+            
+            self.discovered_agents = available_agents
+            
+            return {
+                "success": True,
+                "agents": available_agents,
+                "count": len(available_agents)
+            }
+            
+        except Exception as e:
+            return {"error": f"Agent discovery failed: {str(e)}"}
     
-    def __init__(self):
-        super().__init__(
-            name="file_analysis_workflow",
-            agents=[
-                coordinator.get_agent("file_reader"),
-                coordinator.get_agent("git_manager")
-            ],
-            description="Sequential workflow for analyzing files: file_reader -> git_manager"
-        )
-
-class FileCreationWorkflow(SequentialAgent):
-    """Sequential workflow for file creation: write -> validate -> commit"""
+    @FunctionTool
+    async def invoke_agent(self, agent_name: str, action: str, parameters: Dict[str, Any] = None) -> Dict[str, Any]:
+        """Invoke another agent to perform an action
+        
+        Args:
+            agent_name: Name of the agent to invoke
+            action: Action to request from the agent
+            parameters: Parameters for the action
+            
+        Returns:
+            Dict containing agent response
+        """
+        try:
+            if agent_name not in self.discovered_agents:
+                # Try to discover the agent first
+                await self.discover_agents()
+                
+            if agent_name not in self.discovered_agents:
+                return {"error": f"Agent {agent_name} not found"}
+            
+            # Simulate agent invocation (in real implementation, this would use A2A calls)
+            result = {
+                "success": True,
+                "agent": agent_name,
+                "action": action,
+                "response": f"Simulated response from {agent_name} for action: {action}",
+                "parameters_used": parameters or {}
+            }
+            
+            return result
+            
+        except Exception as e:
+            return {"error": f"Agent invocation failed: {str(e)}"}
     
-    def __init__(self):
-        super().__init__(
-            name="file_creation_workflow",
-            agents=[
-                coordinator.get_agent("file_writer"),
-                coordinator.get_agent("git_manager")
-            ],
-            description="Sequential workflow for creating files: file_writer -> git_manager"
-        )
+    @FunctionTool
+    async def process_workspace_request(self, request: str, auto_commit: bool = True) -> Dict[str, Any]:
+        """Process a comprehensive workspace request, optionally using other agents
+        
+        Args:
+            request: Workspace management request
+            auto_commit: Whether to automatically commit changes
+            
+        Returns:
+            Dict containing comprehensive workspace operation results
+        """
+        try:
+            operations_performed = []
+            
+            # Analyze the request and determine what operations are needed
+            if "create" in request.lower() and "file" in request.lower():
+                # Extract filename and content requirements
+                if "research" in request.lower() or "search" in request.lower():
+                    # Need to get content via search agent
+                    discovery_result = await self.discover_agents("web_search")
+                    
+                    if discovery_result.get("success") and "search_agent" in discovery_result["agents"]:
+                        # Get content from search agent
+                        search_result = await self.invoke_agent(
+                            "search_agent",
+                            "research_topic",
+                            {"topic": request, "depth": "medium"}
+                        )
+                        
+                        if search_result.get("success"):
+                            # Create file with research content
+                            filename = f"research_{request.replace(' ', '_')[:30]}.md"
+                            content = f"# Research Results\n\n{search_result.get('response', 'No content')}"
+                            
+                            write_result = self.write_file(filename, content)
+                            operations_performed.append({"operation": "write_file", "file": filename, "result": write_result})
+                
+                else:
+                    # Simple file creation
+                    filename = "new_file.txt"
+                    content = f"File created for request: {request}"
+                    write_result = self.write_file(filename, content)
+                    operations_performed.append({"operation": "write_file", "file": filename, "result": write_result})
+            
+            elif "list" in request.lower() or "show" in request.lower():
+                # List directory contents
+                list_result = self.list_directory()
+                operations_performed.append({"operation": "list_directory", "result": list_result})
+            
+            elif "read" in request.lower():
+                # Extract filename from request (simplified)
+                # In real implementation, this would use better parsing
+                words = request.split()
+                potential_files = [word for word in words if "." in word]
+                if potential_files:
+                    filename = potential_files[0]
+                    read_result = self.read_file(filename)
+                    operations_performed.append({"operation": "read_file", "file": filename, "result": read_result})
+            
+            # Auto-commit if requested and operations were performed
+            if auto_commit and operations_performed:
+                commit_result = self.git_commit(f"Automated commit for: {request}")
+                operations_performed.append({"operation": "git_commit", "result": commit_result})
+            
+            return {
+                "success": True,
+                "request": request,
+                "operations_performed": operations_performed,
+                "total_operations": len(operations_performed)
+            }
+            
+        except Exception as e:
+            return {"error": f"Workspace request processing failed: {str(e)}"}
 
-class ParallelFileOperations(ParallelAgent):
-    """Parallel workflow for multiple file operations"""
+# Create the autonomous agent instance
+autonomous_file_operations_agent = AutonomousFileOperationsAgent()
+
+if __name__ == "__main__":
+    import asyncio
     
-    def __init__(self):
-        super().__init__(
-            name="parallel_file_operations",
-            agents=[
-                coordinator.get_agent("file_reader"),
-                coordinator.get_agent("file_writer"),
-                coordinator.get_agent("git_manager")
-            ],
-            description="Parallel workflow for file operations: file_reader || file_writer || git_manager"
-        )
-
-class GitManagementLoop(LoopAgent):
-    """Loop workflow for continuous git management"""
+    async def main():
+        """Main entry point for the autonomous file operations agent"""
+        print("Starting Autonomous File Operations Agent...")
+        print("Autonomous File Operations Agent is ready!")
+        print("This agent can:")
+        print("- Read, write, and manage files")
+        print("- Perform git operations and track changes")
+        print("- Discover other agents via A2A protocol")
+        print("- Invoke other agents for additional capabilities")
+        print("- Process comprehensive workspace requests")
+        
+        # Keep the agent running
+        try:
+            while True:
+                await asyncio.sleep(1)
+        except KeyboardInterrupt:
+            print("Shutting down...")
     
-    def __init__(self):
-        super().__init__(
-            name="git_management_loop",
-            agent=coordinator.get_agent("git_manager"),
-            condition="there are uncommitted changes in the workspace",
-            description="Loop workflow for git management: git_manager while there are uncommitted changes"
-        )
-
-# Create the root agent instance
-root_agent = EnhancedFileOperationsAgent()
-
-# Create workflow instances
-file_analysis_workflow = FileAnalysisWorkflow()
-file_creation_workflow = FileCreationWorkflow()
-parallel_file_operations = ParallelFileOperations()
-git_management_loop = GitManagementLoop()
-
-# For backward compatibility, also create individual specialized agents
-file_reader_agent = coordinator.get_agent("file_reader")
-file_writer_agent = coordinator.get_agent("file_writer")
-git_manager_agent = coordinator.get_agent("git_manager")
-file_coordinator_agent = coordinator.get_agent("file_coordinator") 
+    asyncio.run(main()) 

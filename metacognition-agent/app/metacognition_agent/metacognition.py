@@ -88,9 +88,8 @@ class MetacognitionEngine:
         self.logger = logging.getLogger("metacognition")
         self.logger.setLevel(getattr(logging, os.getenv("MONOLOGUE_LOG_LEVEL", "INFO")))
         
-        # Start reflection loop
-        if self.enabled:
-            asyncio.create_task(self._reflection_loop())
+        # Do NOT start the reflection loop here; must be started from an async context
+        # Call await metacognition_engine.start_reflection_loop() from an async context to start
     
     async def think(self, thought_type: ReflectionType, content: str, context: Dict[str, Any] = None) -> MetacognitiveThought:
         """Generate a metacognitive thought"""
@@ -459,6 +458,11 @@ class MetacognitionEngine:
             "orchestration_state": asdict(self.orchestration_state),
             "export_timestamp": datetime.now().isoformat()
         }
+
+    async def start_reflection_loop(self):
+        """Start the background reflection loop. Call this from an async context."""
+        if self.enabled:
+            asyncio.create_task(self._reflection_loop())
 
 # Global metacognition engine instance
 metacognition_engine = MetacognitionEngine() 

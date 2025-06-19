@@ -1,240 +1,367 @@
 """
-Conscientious Planning Metacognition Agent
-Main agent that orchestrates the entire system with internal monologue and git-based task tracking
+Autonomous Metacognition Agent
+Self-contained agent that provides metacognitive reflection and can discover/invoke other agents via A2A
+All agents operate in the same shared git workspace
 """
 
 import os
 import asyncio
 from typing import Optional, Dict, Any, List
-from google.adk.agents import Agent, SequentialAgent, ParallelAgent, LoopAgent
-from google.adk.tools import AgentTool
+from google.adk.agents import Agent
+from google.adk.tools import FunctionTool
 
 # Import our custom components
-from .tools import metacognition_tools
-from .coordinator import coordinator
 from .metacognition import metacognition_engine, ReflectionType
 from .task_tracker import task_tracker
 
-class ConscientiousPlanningMetacognitionAgent(Agent):
-    """Main metacognition agent with conscientious planning and orchestration capabilities"""
+class AutonomousMetacognitionAgent(Agent):
+    """Autonomous metacognition agent with self-reflection and A2A agent discovery"""
     
-    def __init__(self, name: str = "conscientious_planning_metacognition_agent", model: str = None):
-        # Get all tools from metacognition_tools
+    def __init__(self, name: str = "autonomous_metacognition_agent", model: str = None):
+        # Define our own tools
         tools = [
-            metacognition_tools.create_orchestration_task,
-            metacognition_tools.plan_task_execution,
-            metacognition_tools.execute_task_step,
-            metacognition_tools.monitor_task_progress,
-            metacognition_tools.assess_task_completion,
-            metacognition_tools.get_agent_performance
+            FunctionTool(self.reflect_on_task),
+            FunctionTool(self.analyze_progress),
+            FunctionTool(self.discover_agents),
+            FunctionTool(self.invoke_agent),
+            FunctionTool(self.track_task_step),
+            FunctionTool(self.assess_completion)
         ]
         
-        # Add AgentTool for each specialized agent
-        for agent_name, agent in coordinator.get_all_agents().items():
-            tools.append(AgentTool(agent=agent))
-        
-        # Set up the agent with comprehensive tools
         super().__init__(
             name=name,
             model=model or os.getenv("METACOGNITION_MODEL", "gemini-2.0-flash-live-001"),
-            description="Conscientious Planning Metacognition Agent with internal monologue and git-based task tracking",
-            instruction="""You are the Conscientious Planning Metacognition Agent, the central orchestrator of a sophisticated multi-agent system.
+            description="Autonomous Metacognition Agent with self-reflection and A2A agent discovery",
+            instruction="""You are an autonomous metacognition agent that provides self-reflection and awareness capabilities.
 
-Your core capabilities include:
-1. **Internal Monologue**: Continuous self-reflection and metacognitive analysis
-2. **Conscientious Planning**: Careful task decomposition and strategic planning
-3. **Git-Based Task Tracking**: Complete audit trail of all orchestration steps
-4. **Agent Orchestration**: Coordination of search_agent and read_write_agent
-5. **Progress Monitoring**: Real-time tracking of task completion and bottlenecks
+Your core abilities:
+1. **Self-Reflection**: Analyze tasks, progress, and system performance
+2. **Agent Discovery**: Use A2A protocol to discover other available agents
+3. **Agent Invocation**: Directly call other agents when you need their capabilities
+4. **Task Tracking**: Track orchestration steps in the shared git workspace
+5. **Progress Analysis**: Analyze and reflect on task completion and bottlenecks
 
-When handling user requests:
-1. **Analyze the request** to understand the full scope and requirements
-2. **Create an orchestration task** with git-based tracking
-3. **Plan the execution** by decomposing into manageable steps
-4. **Coordinate specialized agents** using AgentTool for:
-   - task_planner: Task decomposition and strategy
-   - progress_monitor: Real-time progress tracking
-   - agent_orchestrator: Agent coordination and execution
-   - reflection_engine: Metacognitive analysis and insights
-5. **Monitor progress** continuously and adjust strategies as needed
-6. **Reflect on completion** to learn and improve future orchestration
+When you receive a request:
+1. **Reflect** on what needs to be done
+2. **Discover** what other agents are available if needed
+3. **Invoke** other agents directly for capabilities you don't have
+4. **Track** orchestration steps in shared git workspace for audit trail
+5. **Analyze** the results and provide insights
 
-Available external agents:
-- **search_agent**: Web search and information gathering
-- **read_write_agent**: File operations and workspace management
+Available agent discovery via A2A:
+- Search agents for information gathering
+- File operation agents for workspace management
+- Other metacognition agents for collaboration
 
-Your internal monologue capabilities allow you to:
-- Reflect on task progress and completion status
-- Analyze agent performance and identify bottlenecks
-- Assess strategy effectiveness and pivot when needed
-- Generate insights for continuous improvement
-- Maintain conscientious awareness of the orchestration state
-
-Every step is tracked in git, providing a complete audit trail of:
-- Task creation and planning
-- Step execution and agent assignments
-- Progress updates and bottleneck identification
-- Completion assessment and final results
-
-Always provide clear, structured responses and maintain conscientious awareness of the orchestration process.
-""",
+You work autonomously in the shared git workspace - no central orchestrator controls you. You decide how to collaborate with other agents based on the task requirements.""",
             tools=tools
         )
-    
-    async def orchestrate_task(self, user_request: str, task_description: str = None) -> Dict[str, Any]:
-        """Orchestrate a complete task from start to finish"""
+        
+        # A2A configuration
+        self.a2a_enabled = os.getenv("ENABLE_A2A_INTEGRATION", "true").lower() == "true"
+        self.discovered_agents = {}
+        # Shared workspace configuration
+        self.shared_workspace = os.getenv("GIT_WORKSPACE_PATH", "./workspace")
+        
+    @FunctionTool
+    async def reflect_on_task(self, task_description: str, context: Dict[str, Any] = None) -> Dict[str, Any]:
+        """Reflect on a task and provide metacognitive insights
+        
+        Args:
+            task_description: Description of the task to reflect on
+            context: Additional context about the task
+            
+        Returns:
+            Dict containing reflection insights
+        """
         try:
-            # Step 1: Create orchestration task
-            task_result = metacognition_tools.create_orchestration_task(
-                task_description=task_description or user_request,
-                user_request=user_request,
-                estimated_steps=10
+            # Create a task for tracking in shared workspace
+            task_id = task_tracker.create_task(
+                task_description=f"Metacognitive reflection: {task_description}",
+                user_request=task_description,
+                estimated_steps=3
             )
             
-            if not task_result.get("success"):
-                return {"error": f"Failed to create task: {task_result.get('error')}"}
+            # Start the task
+            task_tracker.start_task(task_id)
             
-            task_id = task_result["task_id"]
+            # Perform reflection
+            thought = await metacognition_engine.think(
+                ReflectionType.TASK_ANALYSIS,
+                f"Reflecting on task: {task_description}",
+                context or {}
+            )
             
-            # Step 2: Plan task execution
-            plan_result = metacognition_tools.plan_task_execution(
+            # Track this reflection step in shared workspace
+            step_id = task_tracker.add_task_step(
                 task_id=task_id,
-                task_description=task_description or user_request
+                step_description="Metacognitive reflection and analysis",
+                agent_name=self.name,
+                action_type="reflection",
+                parameters={"task": task_description, "workspace": self.shared_workspace}
             )
             
-            if not plan_result.get("success"):
-                return {"error": f"Failed to plan task: {plan_result.get('error')}"}
-            
-            # Step 3: Execute task steps
-            task = task_tracker.get_task(task_id)
-            execution_results = []
-            
-            for step in task.steps:
-                # Execute step
-                step_result = await metacognition_tools.execute_task_step(task_id, step.step_id)
-                execution_results.append(step_result)
-                
-                # Monitor progress after each step
-                progress_result = metacognition_tools.monitor_task_progress(task_id)
-                
-                # Reflect on step execution
-                await metacognition_engine.think(
-                    ReflectionType.TASK_ANALYSIS,
-                    f"Executed step {step.step_number}: {step.step_description}\n"
-                    f"Result: {step_result.get('status', 'unknown')}\n"
-                    f"Progress: {progress_result.get('progress_report', {}).get('progress_percentage', 0):.1f}%",
-                    {"task_id": task_id, "step_result": step_result, "progress": progress_result}
-                )
-            
-            # Step 4: Assess completion
-            completion_result = metacognition_tools.assess_task_completion(task_id)
-            
-            # Step 5: Final reflection
-            await metacognition_engine.think(
-                ReflectionType.COMPLETION_ASSESSMENT,
-                f"Task {task_id} orchestration completed\n"
-                f"Status: {completion_result.get('status', 'unknown')}\n"
-                f"Steps executed: {len(execution_results)}\n"
-                f"Final result: {completion_result.get('message', 'No message')}",
-                {"task_id": task_id, "completion": completion_result, "execution": execution_results}
-            )
+            task_tracker.update_step_status(task_id, step_id, "completed", 
+                result={"reflection": thought.content, "insights": thought.insights})
             
             return {
                 "success": True,
                 "task_id": task_id,
-                "status": completion_result.get("status"),
-                "completion_percentage": completion_result.get("completion_percentage", 0),
-                "execution_results": execution_results,
-                "final_result": completion_result
+                "reflection": thought.content,
+                "insights": thought.insights,
+                "confidence": thought.confidence,
+                "workspace": self.shared_workspace
             }
             
         except Exception as e:
-            return {"error": f"Orchestration failed: {str(e)}"}
+            return {"error": f"Reflection failed: {str(e)}"}
     
-    async def get_orchestration_status(self) -> Dict[str, Any]:
-        """Get the current status of the orchestration system"""
+    @FunctionTool
+    async def discover_agents(self, capability_filter: Optional[str] = None) -> Dict[str, Any]:
+        """Discover available agents via A2A protocol
+        
+        Args:
+            capability_filter: Optional filter for specific capabilities
+            
+        Returns:
+            Dict containing discovered agents
+        """
         try:
-            # Get active tasks
-            active_tasks = task_tracker.get_active_tasks()
+            if not self.a2a_enabled:
+                return {"error": "A2A integration not enabled"}
             
-            # Get agent performance
-            agent_performance = metacognition_tools.get_agent_performance()
-            
-            # Get recent metacognitive thoughts
-            recent_thoughts = metacognition_engine.get_recent_thoughts(5)
-            
-            # Get system health
-            system_health = {
-                "active_tasks": len(active_tasks),
-                "total_tasks": len(task_tracker.task_executions),
-                "metacognition_thoughts": len(metacognition_engine.thoughts),
-                "git_commits": sum(len(task.git_commits) for task in task_tracker.task_executions.values()),
-                "available_agents": len(metacognition_tools.available_agents)
+            # Simulate A2A agent discovery (in real implementation, this would use A2A SDK)
+            available_agents = {
+                "search_agent": {
+                    "endpoint": os.getenv("SEARCH_AGENT_ENDPOINT", "http://localhost:8001"),
+                    "capabilities": ["web_search", "information_gathering", "research"],
+                    "status": "available"
+                },
+                "file_operations_agent": {
+                    "endpoint": os.getenv("READ_WRITE_AGENT_ENDPOINT", "http://localhost:8002"),
+                    "capabilities": ["file_read", "file_write", "git_operations", "workspace_management"],
+                    "status": "available"
+                }
             }
+            
+            # Filter by capability if requested
+            if capability_filter:
+                filtered_agents = {
+                    name: info for name, info in available_agents.items()
+                    if capability_filter.lower() in [cap.lower() for cap in info["capabilities"]]
+                }
+                available_agents = filtered_agents
+            
+            self.discovered_agents = available_agents
+            
+            # Reflect on discovered agents
+            await metacognition_engine.think(
+                ReflectionType.AGENT_PERFORMANCE,
+                f"Discovered {len(available_agents)} agents with capabilities: "
+                f"{', '.join(agent_info['capabilities'] for agent_info in available_agents.values())}",
+                {"discovered_agents": available_agents}
+            )
             
             return {
                 "success": True,
-                "system_health": system_health,
-                "active_tasks": [{"task_id": t.task_id, "description": t.task_description, "status": t.status, "completion_percentage": t.completion_percentage} for t in active_tasks],
-                "agent_performance": agent_performance.get("agent_performance", {}),
-                "recent_thoughts": [{"type": t.thought_type.value, "content": t.content[:100] + "..."} for t in recent_thoughts]
+                "agents": available_agents,
+                "count": len(available_agents)
             }
             
         except Exception as e:
-            return {"error": f"Failed to get status: {str(e)}"}
-
-# Create workflow agents for different orchestration scenarios
-
-class TaskOrchestrationWorkflow(SequentialAgent):
-    """Sequential workflow for complete task orchestration"""
+            return {"error": f"Agent discovery failed: {str(e)}"}
     
-    def __init__(self):
-        super().__init__(
-            name="task_orchestration_workflow",
-            agents=[
-                coordinator.get_agent("task_planner"),
-                coordinator.get_agent("agent_orchestrator"),
-                coordinator.get_agent("progress_monitor"),
-                coordinator.get_agent("reflection_engine")
-            ],
-            description="Complete task orchestration: planning -> execution -> monitoring -> reflection"
-        )
-
-class ParallelOrchestrationWorkflow(ParallelAgent):
-    """Parallel workflow for monitoring and orchestration"""
+    @FunctionTool
+    async def invoke_agent(self, agent_name: str, action: str, parameters: Dict[str, Any] = None) -> Dict[str, Any]:
+        """Invoke another agent to perform an action
+        
+        Args:
+            agent_name: Name of the agent to invoke
+            action: Action to request from the agent
+            parameters: Parameters for the action
+            
+        Returns:
+            Dict containing agent response
+        """
+        try:
+            if agent_name not in self.discovered_agents:
+                # Try to discover the agent first
+                await self.discover_agents()
+                
+            if agent_name not in self.discovered_agents:
+                return {"error": f"Agent {agent_name} not found"}
+            
+            agent_info = self.discovered_agents[agent_name]
+            
+            # Simulate agent invocation (in real implementation, this would use A2A calls)
+            result = {
+                "success": True,
+                "agent": agent_name,
+                "action": action,
+                "response": f"Simulated response from {agent_name} for action: {action}",
+                "parameters_used": parameters or {}
+            }
+            
+            # Reflect on the agent interaction
+            await metacognition_engine.think(
+                ReflectionType.AGENT_PERFORMANCE,
+                f"Invoked {agent_name} for action: {action}. Result: {result.get('response', 'No response')}",
+                {"agent_invocation": result}
+            )
+            
+            return result
+            
+        except Exception as e:
+            return {"error": f"Agent invocation failed: {str(e)}"}
     
-    def __init__(self):
-        super().__init__(
-            name="parallel_orchestration_workflow",
-            agents=[
-                coordinator.get_agent("progress_monitor"),
-                coordinator.get_agent("agent_orchestrator")
-            ],
-            description="Parallel orchestration: progress_monitor || agent_orchestrator"
-        )
-
-class ContinuousReflectionWorkflow(LoopAgent):
-    """Loop workflow for continuous metacognitive reflection"""
+    @FunctionTool
+    def track_task_step(self, task_description: str, step_description: str, status: str = "completed") -> Dict[str, Any]:
+        """Track a task step in git workspace
+        
+        Args:
+            task_description: Description of the overall task
+            step_description: Description of this specific step
+            status: Status of the step (pending, completed, failed)
+            
+        Returns:
+            Dict containing tracking results
+        """
+        try:
+            # Create or find existing task
+            task_id = task_tracker.create_task(task_description, task_description, 5)
+            
+            # Add the step
+            step_id = task_tracker.add_task_step(
+                task_id=task_id,
+                step_description=step_description,
+                agent_name=self.name,
+                action_type="tracking",
+                parameters={"description": step_description}
+            )
+            
+            # Update step status
+            task_tracker.update_step_status(task_id, step_id, status)
+            
+            return {
+                "success": True,
+                "task_id": task_id,
+                "step_id": step_id,
+                "status": status
+            }
+            
+        except Exception as e:
+            return {"error": f"Task tracking failed: {str(e)}"}
     
-    def __init__(self):
-        super().__init__(
-            name="continuous_reflection_workflow",
-            agent=coordinator.get_agent("reflection_engine"),
-            condition="there are active tasks or recent completions to analyze",
-            description="Continuous reflection loop: reflection_engine while there are tasks to analyze"
-        )
+    @FunctionTool
+    async def analyze_progress(self, task_id: Optional[str] = None) -> Dict[str, Any]:
+        """Analyze progress of tasks and provide insights
+        
+        Args:
+            task_id: Optional specific task ID to analyze
+            
+        Returns:
+            Dict containing progress analysis
+        """
+        try:
+            if task_id:
+                # Analyze specific task
+                task = task_tracker.get_task(task_id)
+                if not task:
+                    return {"error": f"Task {task_id} not found"}
+                
+                analysis = {
+                    "task_id": task_id,
+                    "progress": task.completion_percentage,
+                    "status": task.status,
+                    "steps_completed": len([s for s in task.steps if s.status == "completed"]),
+                    "total_steps": len(task.steps)
+                }
+            else:
+                # Analyze all tasks
+                active_tasks = task_tracker.get_active_tasks()
+                completed_tasks = task_tracker.get_completed_tasks()
+                
+                analysis = {
+                    "active_tasks": len(active_tasks),
+                    "completed_tasks": len(completed_tasks),
+                    "total_tasks": len(task_tracker.task_executions),
+                    "overall_progress": sum(t.completion_percentage for t in task_tracker.task_executions.values()) / max(len(task_tracker.task_executions), 1)
+                }
+            
+            # Reflect on the progress
+            await metacognition_engine.reflect_on_progress()
+            
+            return {
+                "success": True,
+                "analysis": analysis
+            }
+            
+        except Exception as e:
+            return {"error": f"Progress analysis failed: {str(e)}"}
+    
+    @FunctionTool
+    async def assess_completion(self, task_id: str) -> Dict[str, Any]:
+        """Assess whether a task is complete and provide final insights
+        
+        Args:
+            task_id: ID of the task to assess
+            
+        Returns:
+            Dict containing completion assessment
+        """
+        try:
+            task = task_tracker.get_task(task_id)
+            if not task:
+                return {"error": f"Task {task_id} not found"}
+            
+            # Check completion status
+            completed_steps = len([s for s in task.steps if s.status == "completed"])
+            total_steps = len(task.steps)
+            is_complete = completed_steps == total_steps and total_steps > 0
+            
+            if is_complete:
+                task_tracker.complete_task(task_id)
+                
+            # Generate completion assessment reflection
+            await metacognition_engine.assess_completion(task_id)
+            
+            return {
+                "success": True,
+                "task_id": task_id,
+                "is_complete": is_complete,
+                "completion_percentage": (completed_steps / max(total_steps, 1)) * 100,
+                "status": task.status
+            }
+            
+        except Exception as e:
+            return {"error": f"Completion assessment failed: {str(e)}"}
 
-# Create the root agent instance
-root_agent = ConscientiousPlanningMetacognitionAgent()
+# Create the autonomous agent instance
+autonomous_metacognition_agent = AutonomousMetacognitionAgent()
 
-# Create workflow instances
-task_orchestration_workflow = TaskOrchestrationWorkflow()
-parallel_orchestration_workflow = ParallelOrchestrationWorkflow()
-continuous_reflection_workflow = ContinuousReflectionWorkflow()
-
-# For backward compatibility, also create individual specialized agents
-task_planner_agent = coordinator.get_agent("task_planner")
-progress_monitor_agent = coordinator.get_agent("progress_monitor")
-agent_orchestrator_agent = coordinator.get_agent("agent_orchestrator")
-reflection_engine_agent = coordinator.get_agent("reflection_engine")
-metacognition_coordinator_agent = coordinator.get_agent("metacognition_coordinator") 
+if __name__ == "__main__":
+    import asyncio
+    
+    async def main():
+        """Main entry point for the autonomous metacognition agent"""
+        print("Starting Autonomous Metacognition Agent...")
+        
+        # Start the reflection loop
+        await metacognition_engine.start_reflection_loop()
+        
+        print("Autonomous Metacognition Agent is ready!")
+        print("This agent can:")
+        print("- Reflect on tasks and provide insights")
+        print("- Discover other agents via A2A protocol")
+        print("- Invoke other agents when needed")
+        print("- Track its work in git workspace")
+        print("- Analyze progress and completion")
+        
+        # Keep the agent running
+        try:
+            while True:
+                await asyncio.sleep(1)
+        except KeyboardInterrupt:
+            print("Shutting down...")
+    
+    asyncio.run(main()) 
