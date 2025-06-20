@@ -6,7 +6,7 @@ All agents operate in the same shared git workspace
 
 import os
 import asyncio
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, ClassVar
 from google.adk.agents import Agent
 from google.adk.tools import FunctionTool
 
@@ -17,8 +17,13 @@ from .task_tracker import task_tracker
 class AutonomousMetacognitionAgent(Agent):
     """Autonomous metacognition agent with self-reflection and A2A agent discovery"""
     
+    # Declare instance variables to avoid Pydantic field conflicts
+    a2a_enabled: bool = True
+    discovered_agents: Dict[str, Any] = {}
+    shared_workspace: str = "./workspace"
+    
     def __init__(self, name: str = "autonomous_metacognition_agent", model: str = None):
-        # Define our own tools
+        # Define our own tools using FunctionTool directly
         tools = [
             FunctionTool(self.reflect_on_task),
             FunctionTool(self.analyze_progress),
@@ -61,9 +66,9 @@ You work autonomously in the shared git workspace - no central orchestrator cont
         self.a2a_enabled = os.getenv("ENABLE_A2A_INTEGRATION", "true").lower() == "true"
         self.discovered_agents = {}
         # Shared workspace configuration
-        self.shared_workspace = os.getenv("GIT_WORKSPACE_PATH", "./workspace")
-        
-    @FunctionTool
+        self.shared_workspace = os.getenv("TASK_WORKSPACE_PATH", "./workspace")
+    
+    # Tool methods (no decorators needed since we create FunctionTool instances in __init__)
     async def reflect_on_task(self, task_description: str, context: Dict[str, Any] = None) -> Dict[str, Any]:
         """Reflect on a task and provide metacognitive insights
         
@@ -116,7 +121,6 @@ You work autonomously in the shared git workspace - no central orchestrator cont
         except Exception as e:
             return {"error": f"Reflection failed: {str(e)}"}
     
-    @FunctionTool
     async def discover_agents(self, capability_filter: Optional[str] = None) -> Dict[str, Any]:
         """Discover available agents via A2A protocol
         
@@ -171,7 +175,6 @@ You work autonomously in the shared git workspace - no central orchestrator cont
         except Exception as e:
             return {"error": f"Agent discovery failed: {str(e)}"}
     
-    @FunctionTool
     async def invoke_agent(self, agent_name: str, action: str, parameters: Dict[str, Any] = None) -> Dict[str, Any]:
         """Invoke another agent to perform an action
         
@@ -214,7 +217,6 @@ You work autonomously in the shared git workspace - no central orchestrator cont
         except Exception as e:
             return {"error": f"Agent invocation failed: {str(e)}"}
     
-    @FunctionTool
     def track_task_step(self, task_description: str, step_description: str, status: str = "completed") -> Dict[str, Any]:
         """Track a task step in git workspace
         
@@ -252,7 +254,6 @@ You work autonomously in the shared git workspace - no central orchestrator cont
         except Exception as e:
             return {"error": f"Task tracking failed: {str(e)}"}
     
-    @FunctionTool
     async def analyze_progress(self, task_id: Optional[str] = None) -> Dict[str, Any]:
         """Analyze progress of tasks and provide insights
         
@@ -299,7 +300,6 @@ You work autonomously in the shared git workspace - no central orchestrator cont
         except Exception as e:
             return {"error": f"Progress analysis failed: {str(e)}"}
     
-    @FunctionTool
     async def assess_completion(self, task_id: str) -> Dict[str, Any]:
         """Assess whether a task is complete and provide final insights
         

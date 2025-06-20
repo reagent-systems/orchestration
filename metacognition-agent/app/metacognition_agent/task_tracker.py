@@ -54,7 +54,7 @@ class TaskExecution:
 class GitTaskTracker:
     """Git-based task tracking system"""
     
-    def __init__(self, workspace_path: str = "./task_workspace"):
+    def __init__(self, workspace_path: str = "./workspace"):
         self.workspace_path = Path(workspace_path)
         self.workspace_path.mkdir(exist_ok=True)
         self.repo = None
@@ -491,4 +491,4 @@ Each commit represents a step in task execution, providing a complete audit trai
             self.logger.info(f"Cleaned up {len(tasks_to_remove)} old tasks")
 
 # Global task tracker instance
-task_tracker = GitTaskTracker(os.getenv("TASK_WORKSPACE_PATH", "./task_workspace")) 
+task_tracker = GitTaskTracker(os.getenv("TASK_WORKSPACE_PATH", "./workspace")) 
