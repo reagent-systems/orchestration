@@ -52,6 +52,132 @@ python run_interface.py
 - 👀 Watch agents work in real-time
 - 🎮 Control everything with keyboard shortcuts
 
+## 🧠 How Orchestration Works
+
+### **Core Philosophy: Decentralized Autonomous Coordination**
+
+This system implements a **truly decentralized architecture** where agents operate independently without any central orchestrator. Think of it as a "digital ecosystem" where specialized agents collaborate through a shared workspace.
+
+### **🔄 The Orchestration Flow**
+
+#### **1. Task Creation & Decomposition**
+When you create a complex task like:
+> *"Analyze codebase for syntax flaws and search Stack Overflow for fixes"*
+
+The system automatically:
+1. **TaskBreakdownAgent** detects complexity and decomposes it into sequential steps:
+   - `Step 1`: Analyze codebase structure → `planning`
+   - `Step 2`: Check for syntax flaws → `terminal` 
+   - `Step 3`: Search web for fixes → `search`
+   - `Step 4`: Implement fixes → `file`
+
+#### **2. Autonomous Agent Discovery**
+- **MetacognitionAgent** creates detailed execution plans with specific commands
+- **TerminalAgent** executes shell operations safely with validation
+- **SearchAgent** finds solutions using built-in Google Search
+- **FileOperationsAgent** implements changes to your codebase
+
+#### **3. Workspace-Based Communication**
+```
+Human Input → Interface → Workspace Files → Agent Reactions
+     ↑             ↓           ↓              ↓
+  Live TUI ← Live Monitoring ← JSON Tasks ← Autonomous Discovery
+```
+
+**No direct agent communication** - everything flows through the shared workspace:
+- Tasks stored as JSON in `workspace/current_tasks/`
+- Agents monitor workspace every 3 seconds
+- Task claiming prevents conflicts
+- Progress tracked in real-time logs
+
+### **⚡ Real-time Agent Coordination**
+
+#### **Task Lifecycle:**
+1. **Available** → Task created, waiting for agent
+2. **Claimed** → Agent discovers and claims task  
+3. **In Progress** → Agent actively working
+4. **Completed** → Results saved to workspace
+
+#### **Live Task Editing:**
+- Edit any task with `E` in the interface
+- System **automatically interrupts** working agents
+- Task gets **re-queued** for appropriate agent
+- Agents **adapt instantly** to changes
+
+#### **Conflict Resolution:**
+- **Atomic claiming**: Only one agent can claim a task
+- **Timeout handling**: Stuck tasks get released
+- **Dependency tracking**: Sequential task execution
+- **Error recovery**: Failed tasks can be retried
+
+### **🎯 Agent Specialization**
+
+Each agent has a **single, focused responsibility**:
+
+| Agent | Specialization | Capabilities |
+|-------|---------------|-------------|
+| **🎛️ Interface** | Human Control | Task creation, live editing, monitoring |
+| **📊 TaskBreakdown** | Task Analysis | Decomposes complex tasks into sequential steps |
+| **🧠 Metacognition** | Planning | Creates detailed execution strategies with specific commands |
+| **🖥️ Terminal** | Shell Operations | Safe command execution with validation & timeouts |
+| **🔍 Search** | Web Research | Built-in Google Search via ADK (no API keys needed) |
+| **📁 FileOperations** | File Management | Real filesystem operations with git integration |
+
+### **🌊 Example Orchestration Flow**
+
+**User Input:** *"Review my Python code and suggest improvements"*
+
+**🔄 Automatic Orchestration:**
+```
+1. TaskBreakdownAgent → Decomposes into:
+   ├─ analyze-code-structure (metacognition)
+   ├─ run-syntax-check (terminal)  
+   ├─ search-best-practices (search)
+   └─ generate-recommendations (file)
+
+2. MetacognitionAgent → Plans:
+   ├─ "find . -name '*.py' | head -20"
+   ├─ "Analyze project structure and dependencies"
+   └─ "Create analysis strategy"
+
+3. TerminalAgent → Executes:
+   ├─ Safely runs commands
+   ├─ Validates output
+   └─ Saves results to workspace
+
+4. SearchAgent → Researches:
+   ├─ "Python code quality best practices"
+   ├─ "Python linting tools comparison"
+   └─ Saves findings to workspace
+
+5. FileOperationsAgent → Implements:
+   ├─ Creates improvement recommendations
+   ├─ Documents findings
+   └─ Commits results to git
+```
+
+**All happening automatically while you watch in the live interface!** ⚡
+
+### **🛡️ Safety & Reliability**
+
+- **Command Validation**: Terminal agent blocks dangerous operations
+- **Sandboxed Execution**: All operations contained to workspace
+- **Error Handling**: Graceful failure recovery
+- **Interrupt Capability**: Stop any operation instantly
+- **Audit Trail**: Complete history of all actions
+- **Git Integration**: All changes tracked and versioned
+
+### **🎨 Why This Architecture Works**
+
+**✅ Scalable**: Add new agents without changing existing ones  
+**✅ Resilient**: No single point of failure  
+**✅ Transparent**: Every action visible in real-time  
+**✅ Controllable**: Interrupt and modify anything instantly  
+**✅ Extensible**: Easy to add new capabilities  
+**✅ Safe**: Multiple layers of validation and control  
+
+The result is a **living, breathing orchestration system** where intelligent agents collaborate seamlessly while you maintain complete control through an elegant interface! 🎛️
+
 ## 🎯 What You'll See
 
 ### **Interface Layout**
