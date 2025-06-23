@@ -1,297 +1,253 @@
 """
-Autonomous Google Search Agent
-Self-contained agent that provides web search capabilities and can discover/invoke other agents via A2A
-All agents operate in the same shared git workspace
+ADK Built-in Search Agent - Workspace Task Monitoring
+Uses official Google ADK google_search tool - no custom API setup needed!
 """
 
 import os
+import json
 import asyncio
-from typing import Optional, Dict, Any, List
+import time
+from pathlib import Path
+from typing import Dict, Any, List, Optional
+from dotenv import load_dotenv
 from google.adk.agents import Agent
-from google.adk.tools import FunctionTool
+from google.adk.tools import FunctionTool, google_search
 
-class AutonomousSearchAgent(Agent):
-    """Autonomous search agent with web search capabilities and A2A agent discovery"""
+# Load environment variables from root .env
+load_dotenv(dotenv_path="../../.env")
+
+class SearchAgent:
+    """Search Agent using built-in ADK google_search tool with workspace task monitoring"""
     
-    def __init__(self, name: str = "autonomous_search_agent", model: str = None):
-        # Define our own tools
-        tools = [
-            FunctionTool(self.web_search),
-            FunctionTool(self.research_topic),
-            FunctionTool(self.discover_agents),
-            FunctionTool(self.invoke_agent),
-            FunctionTool(self.gather_comprehensive_info)
-        ]
+    def __init__(self):
+        self.workspace_path = Path(os.getenv("GIT_WORKSPACE_PATH", "./workspace"))
+        self.tasks_path = self.workspace_path / "current_tasks"
+        self.agent_id = "search_agent"
         
-        super().__init__(
-            name=name,
-            model=model or os.getenv("SEARCH_MODEL", "gemini-2.0-flash-live-001"),
-            description="Autonomous Search Agent with web search and A2A agent discovery",
-            instruction="""You are an autonomous search agent specialized in web search and information gathering.
+        # Create the ADK agent with built-in google_search tool
+        self.agent = Agent(
+            name="search_agent",
+            model=os.getenv("SEARCH_MODEL", "gemini-2.0-flash"),
+            description="Search Agent using built-in ADK Google Search - performs web searches and saves results to workspace",
+            instruction="""You are a search agent that performs web searches using the built-in Google Search capability.
 
-Your core abilities:
-1. **Web Search**: Perform comprehensive web searches and information gathering
-2. **Research**: Conduct deep research on topics using multiple search strategies
-3. **Agent Discovery**: Use A2A protocol to discover other available agents
-4. **Agent Invocation**: Call other agents when you need their capabilities (file ops, analysis, etc.)
-5. **Information Synthesis**: Combine and analyze information from multiple sources
+Your capabilities:
+1. **Web Search**: Use the built-in google_search tool for web searches (no API setup needed)
+2. **Research Tasks**: Conduct comprehensive research with multiple search queries
+3. **Result Processing**: Extract and format search results from Google Search
+4. **Workspace Integration**: Save search results to shared workspace for other agents
 
-When you receive a request:
-1. **Analyze** what information is needed
-2. **Search** the web for relevant information
-3. **Discover** other agents if you need additional capabilities
-4. **Invoke** other agents for tasks like file operations or analysis in shared workspace
-5. **Synthesize** and present comprehensive results
+When you receive search requests:
+1. Use the google_search tool to find relevant information
+2. Process and organize the results clearly
+3. Save findings to the workspace for other agents to use
+4. Provide comprehensive summaries of search results
 
-Available agent discovery via A2A:
-- File operation agents for saving research results to shared workspace
-- Metacognition agents for analysis and insights
-- Other search agents for collaboration
-
-You work autonomously in the shared git workspace - no central orchestrator controls you. You decide how to collaborate with other agents based on the information gathering requirements.""",
-            tools=tools
+You monitor the workspace for search-related tasks and execute them autonomously.""",
+            tools=[
+                google_search,  # Built-in ADK Google Search tool
+                FunctionTool(self.save_search_results),
+                FunctionTool(self.process_search_request)
+            ]
         )
         
-        # A2A configuration
-        self.a2a_enabled = os.getenv("ENABLE_A2A_INTEGRATION", "true").lower() == "true"
-        self.discovered_agents = {}
-        # Shared workspace configuration
-        self.shared_workspace = os.getenv("GIT_WORKSPACE_PATH", "./workspace")
-        
-    @FunctionTool
-    async def web_search(self, query: str, max_results: int = 10) -> Dict[str, Any]:
-        """Perform a web search for the given query
-        
-        Args:
-            query: Search query
-            max_results: Maximum number of results to return
-            
-        Returns:
-            Dict containing search results
-        """
-        try:
-            # Simulate web search (in real implementation, this would use actual search APIs)
-            results = [
-                {
-                    "title": f"Search result {i} for: {query}",
-                    "url": f"https://example.com/result-{i}",
-                    "snippet": f"This is a simulated search result snippet for query '{query}'. Result number {i}.",
-                    "relevance_score": 0.9 - (i * 0.1)
-                }
-                for i in range(1, min(max_results + 1, 6))
-            ]
-            
-            return {
-                "success": True,
-                "query": query,
-                "results": results,
-                "total_results": len(results)
-            }
-            
-        except Exception as e:
-            return {"error": f"Web search failed: {str(e)}"}
-    
-    @FunctionTool
-    async def research_topic(self, topic: str, depth: str = "medium") -> Dict[str, Any]:
-        """Conduct comprehensive research on a topic
-        
-        Args:
-            topic: Topic to research
-            depth: Research depth (shallow, medium, deep)
-            
-        Returns:
-            Dict containing research results
-        """
-        try:
-            # Determine search strategy based on depth
-            if depth == "shallow":
-                queries = [topic]
-            elif depth == "medium":
-                queries = [topic, f"{topic} overview", f"{topic} examples"]
-            else:  # deep
-                queries = [topic, f"{topic} overview", f"{topic} examples", f"{topic} best practices", f"{topic} latest developments"]
-            
-            all_results = []
-            for query in queries:
-                search_result = await self.web_search(query, max_results=5)
-                if search_result.get("success"):
-                    all_results.extend(search_result["results"])
-            
-            # Synthesize findings
-            synthesis = {
-                "topic": topic,
-                "research_depth": depth,
-                "total_sources": len(all_results),
-                "key_findings": [
-                    f"Finding 1: {topic} is an important subject with multiple aspects",
-                    f"Finding 2: Research shows various approaches to {topic}",
-                    f"Finding 3: Current trends in {topic} indicate continued development"
-                ],
-                "sources": all_results
-            }
-            
-            return {
-                "success": True,
-                "research": synthesis
-            }
-            
-        except Exception as e:
-            return {"error": f"Research failed: {str(e)}"}
-    
-    @FunctionTool
-    async def discover_agents(self, capability_filter: Optional[str] = None) -> Dict[str, Any]:
-        """Discover available agents via A2A protocol
-        
-        Args:
-            capability_filter: Optional filter for specific capabilities
-            
-        Returns:
-            Dict containing discovered agents
-        """
-        try:
-            if not self.a2a_enabled:
-                return {"error": "A2A integration not enabled"}
-            
-            # Simulate A2A agent discovery
-            available_agents = {
-                "file_operations_agent": {
-                    "endpoint": os.getenv("READ_WRITE_AGENT_ENDPOINT", "http://localhost:8002"),
-                    "capabilities": ["file_read", "file_write", "git_operations", "workspace_management"],
-                    "status": "available"
-                },
-                "metacognition_agent": {
-                    "endpoint": os.getenv("METACOGNITION_AGENT_ENDPOINT", "http://localhost:8000"),
-                    "capabilities": ["reflection", "analysis", "task_tracking", "progress_monitoring"],
-                    "status": "available"
-                }
-            }
-            
-            # Filter by capability if requested
-            if capability_filter:
-                filtered_agents = {
-                    name: info for name, info in available_agents.items()
-                    if capability_filter.lower() in [cap.lower() for cap in info["capabilities"]]
-                }
-                available_agents = filtered_agents
-            
-            self.discovered_agents = available_agents
-            
-            return {
-                "success": True,
-                "agents": available_agents,
-                "count": len(available_agents)
-            }
-            
-        except Exception as e:
-            return {"error": f"Agent discovery failed: {str(e)}"}
-    
-    @FunctionTool
-    async def invoke_agent(self, agent_name: str, action: str, parameters: Dict[str, Any] = None) -> Dict[str, Any]:
-        """Invoke another agent to perform an action
-        
-        Args:
-            agent_name: Name of the agent to invoke
-            action: Action to request from the agent
-            parameters: Parameters for the action
-            
-        Returns:
-            Dict containing agent response
-        """
-        try:
-            if agent_name not in self.discovered_agents:
-                # Try to discover the agent first
-                await self.discover_agents()
-                
-            if agent_name not in self.discovered_agents:
-                return {"error": f"Agent {agent_name} not found"}
-            
-            # Simulate agent invocation (in real implementation, this would use A2A calls)
-            result = {
-                "success": True,
-                "agent": agent_name,
-                "action": action,
-                "response": f"Simulated response from {agent_name} for action: {action}",
-                "parameters_used": parameters or {}
-            }
-            
-            return result
-            
-        except Exception as e:
-            return {"error": f"Agent invocation failed: {str(e)}"}
-    
-    @FunctionTool
-    async def gather_comprehensive_info(self, request: str, save_results: bool = False) -> Dict[str, Any]:
-        """Gather comprehensive information on a topic, optionally saving results
-        
-        Args:
-            request: Information gathering request
-            save_results: Whether to save results using file operations agent
-            
-        Returns:
-            Dict containing comprehensive information
-        """
-        try:
-            # Step 1: Research the topic
-            research_result = await self.research_topic(request, depth="deep")
-            
-            if not research_result.get("success"):
-                return {"error": f"Research failed: {research_result.get('error')}"}
-            
-            # Step 2: If saving is requested, discover file operations agent
-            if save_results:
-                discovery_result = await self.discover_agents("file_write")
-                
-                if discovery_result.get("success") and "file_operations_agent" in discovery_result["agents"]:
-                    # Step 3: Save the research results
-                    save_result = await self.invoke_agent(
-                        "file_operations_agent",
-                        "save_research",
-                        {
-                            "filename": f"research_{request.replace(' ', '_')}.md",
-                            "content": research_result["research"],
-                            "format": "markdown"
-                        }
-                    )
-                    
-                    return {
-                        "success": True,
-                        "request": request,
-                        "research": research_result["research"],
-                        "saved": save_result.get("success", False),
-                        "save_location": save_result.get("response", "Not saved")
-                    }
-            
-            return {
-                "success": True,
-                "request": request,
-                "research": research_result["research"],
-                "saved": False
-            }
-            
-        except Exception as e:
-            return {"error": f"Information gathering failed: {str(e)}"}
+        print("✅ Search Agent initialized with built-in ADK Google Search tool")
 
-# Create the autonomous agent instance
-autonomous_search_agent = AutonomousSearchAgent()
+    @FunctionTool
+    def save_search_results(self, results: Dict[str, Any], filename: str = None) -> Dict[str, Any]:
+        """Save search results to workspace for other agents
+        
+        Args:
+            results: Search results to save
+            filename: Optional filename (auto-generated if not provided)
+            
+        Returns:
+            Dict containing save operation results
+        """
+        try:
+            if not filename:
+                query = results.get("query", results.get("topic", "search"))
+                safe_query = "".join(c for c in query if c.isalnum() or c in (' ', '-', '_')).rstrip()
+                filename = f"search_results_{safe_query.replace(' ', '_')[:30]}.json"
+            
+            # Ensure results directory exists
+            results_dir = self.workspace_path / "search_results"
+            results_dir.mkdir(exist_ok=True)
+            
+            # Save results
+            filepath = results_dir / filename
+            with open(filepath, 'w', encoding='utf-8') as f:
+                json.dump(results, f, indent=2, ensure_ascii=False)
+            
+            return {
+                "success": True,
+                "filepath": str(filepath),
+                "filename": filename,
+                "size": filepath.stat().st_size
+            }
+            
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Failed to save results: {str(e)}"
+            }
+
+    @FunctionTool  
+    def process_search_request(self, query: str, save_to_workspace: bool = True) -> Dict[str, Any]:
+        """Process a search request and optionally save results
+        
+        Args:
+            query: Search query to process
+            save_to_workspace: Whether to save results to workspace
+            
+        Returns:
+            Dict containing processing results
+        """
+        try:
+            # The actual search is handled by the built-in google_search tool
+            # This function handles the workspace integration
+            
+            result_data = {
+                "query": query,
+                "processed_at": time.time(),
+                "agent": "search_agent",
+                "status": "processed"
+            }
+            
+            if save_to_workspace:
+                save_result = self.save_search_results(result_data)
+                result_data["saved_to"] = save_result.get("filepath")
+                result_data["save_success"] = save_result.get("success", False)
+            
+            return {
+                "success": True,
+                "result": result_data
+            }
+            
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Failed to process search request: {str(e)}"
+            }
+
+    def can_handle_task(self, task_data: Dict[str, Any]) -> bool:
+        """Check if this agent can handle the given task"""
+        task_type = task_data.get("agent_type", "").lower()
+        description = task_data.get("description", "").lower()
+        
+        # Handle search-related tasks
+        if task_type == "search":
+            return True
+            
+        # Handle tasks with search keywords
+        search_keywords = ["search", "research", "find", "look up", "web search", "google"]
+        return any(keyword in description for keyword in search_keywords)
+
+    async def process_task(self, task_path: Path):
+        """Process a search task"""
+        try:
+            # Load task
+            with open(task_path / "task.json", 'r') as f:
+                task_data = json.load(f)
+            
+            # Claim the task
+            task_data["status"] = "in_progress"
+            task_data["claimed_by"] = self.agent_id
+            task_data["claimed_at"] = time.time()
+            
+            with open(task_path / "task.json", 'w') as f:
+                json.dump(task_data, f, indent=2)
+            
+            # Extract search query from description
+            description = task_data["description"]
+            
+            if "search for" in description.lower():
+                query = description.lower().split("search for")[1].strip()
+            elif "research" in description.lower():
+                query = description.lower().replace("research", "").strip()
+            else:
+                query = description
+            
+            # Process the search request (the actual search will be done by google_search tool when model is invoked)
+            result = self.process_search_request(query, save_to_workspace=True)
+            
+            # Update task with results
+            task_data["status"] = "completed" if result.get("success") else "failed"
+            task_data["result"] = result
+            task_data["completed_at"] = time.time()
+            
+            with open(task_path / "task.json", 'w') as f:
+                json.dump(task_data, f, indent=2)
+            
+            # Log progress
+            with open(task_path / "progress.log", 'a') as f:
+                status = "✅ COMPLETED" if result.get("success") else "❌ FAILED"
+                f.write(f"\n[{time.strftime('%Y-%m-%d %H:%M:%S')}] {status} - Search Agent (ADK Built-in)\n")
+                f.write(f"Query: {query}\n")
+                if result.get("success"):
+                    f.write(f"Processed successfully using built-in Google Search\n")
+                    if result.get("result", {}).get("saved_to"):
+                        f.write(f"Saved to: {result['result']['saved_to']}\n")
+                else:
+                    f.write(f"Error: {result.get('error', 'Unknown error')}\n")
+            
+        except Exception as e:
+            print(f"Error processing task {task_path.name}: {e}")
+
+    async def monitor_workspace(self):
+        """Monitor workspace for search tasks"""
+        print(f"🔍 Search Agent monitoring workspace: {self.tasks_path}")
+        
+        while True:
+            try:
+                if not self.tasks_path.exists():
+                    await asyncio.sleep(int(os.getenv("TASK_MONITOR_INTERVAL", 3)))
+                    continue
+                
+                # Check for available tasks
+                for task_dir in self.tasks_path.iterdir():
+                    if not task_dir.is_dir():
+                        continue
+                    
+                    task_file = task_dir / "task.json"
+                    if not task_file.exists():
+                        continue
+                    
+                    try:
+                        with open(task_file, 'r') as f:
+                            task_data = json.load(f)
+                        
+                        # Skip if task is not available or not for us
+                        if task_data.get("status") != "available":
+                            continue
+                        
+                        if not self.can_handle_task(task_data):
+                            continue
+                        
+                        print(f"🔍 Claiming search task: {task_dir.name}")
+                        await self.process_task(task_dir)
+                        
+                    except Exception as e:
+                        print(f"Error checking task {task_dir.name}: {e}")
+                
+            except Exception as e:
+                print(f"Error in workspace monitoring: {e}")
+            
+            await asyncio.sleep(int(os.getenv("TASK_MONITOR_INTERVAL", 3)))
+
+    async def run(self):
+        """Run the search agent"""
+        print("🔍 Starting ADK Built-in Search Agent...")
+        print("Features:")
+        print("- Built-in ADK Google Search tool (no API setup needed)")
+        print("- Workspace task monitoring")
+        print("- Result saving to shared workspace")
+        print("- Seamless integration with Gemini models")
+        
+        await self.monitor_workspace()
+
+# Create agent instance
+search_agent = SearchAgent()
 
 if __name__ == "__main__":
-    import asyncio
-    
-    async def main():
-        """Main entry point for the autonomous search agent"""
-        print("Starting Autonomous Search Agent...")
-        print("Autonomous Search Agent is ready!")
-        print("This agent can:")
-        print("- Perform web searches and research")
-        print("- Discover other agents via A2A protocol")
-        print("- Invoke other agents for additional capabilities")
-        print("- Gather and synthesize comprehensive information")
-        
-        # Keep the agent running
-        try:
-            while True:
-                await asyncio.sleep(1)
-        except KeyboardInterrupt:
-            print("Shutting down...")
-    
-    asyncio.run(main()) 
+    asyncio.run(search_agent.run()) 

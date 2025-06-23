@@ -526,7 +526,7 @@ Keep it practical, specific, and executable.""",
                 
                 with open(task_file, 'w') as f:
                     json.dump(task, f, indent=2)
-                    
+            
         except Exception as e:
             print(f"❌ Failed to mark planning task completed {task_id}: {e}")
     
@@ -598,7 +598,7 @@ Keep it practical, specific, and executable.""",
                     not self._is_task_claimed(task)):
                     
                     planning_tasks.append(task)
-                    
+            
         except Exception as e:
             print(f"❌ Error finding planning tasks: {e}")
         
@@ -650,7 +650,7 @@ Keep it practical, specific, and executable.""",
             
             with open(task_file, 'w') as f:
                 json.dump(task, f, indent=2)
-                
+            
         except Exception as e:
             print(f"❌ Failed to claim task {task['task_id']}: {e}")
 

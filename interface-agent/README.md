@@ -1,157 +1,193 @@
-# Interface Agent 🎯
+# 🎛️ Orchestration Interface Agent
 
-**Human Gateway to the Decentralized Multi-Agent Orchestration System**
+**Sophisticated Textual-based Live Orchestration Control Center**
 
-The Interface Agent provides a user-friendly CLI interface for interacting with the orchestration system. It serves as the primary entry point for humans to assign tasks, monitor progress, and manage the multi-agent ecosystem.
+A beautiful, interactive TUI (Terminal User Interface) that provides real-time control over your orchestration system. Built with Textual framework, it offers a Lazygit-style interface for managing tasks and monitoring agents.
 
-## Features 🚀
+## ✨ Features
 
-### 📝 Task Management
-- **Interactive Task Creation**: Guided wizard for creating new tasks
-- **Auto-Agent Assignment**: Intelligent agent suggestion based on task content
-- **Priority & Complexity Settings**: Categorize tasks for better orchestration
-- **Real-time Progress Tracking**: Monitor task execution across all agents
+### 🎯 **Live Task Management**
+- **Real-time Task Tree**: Git-style hierarchical view of all tasks
+- **Interactive Editing**: Live task modification with agent interruption
+- **Status Monitoring**: Visual indicators for task states (available, claimed, in_progress, completed, failed)
+- **Quick Actions**: Create, edit, delete tasks with keyboard shortcuts
 
-### 👀 System Monitoring  
-- **Live Progress Monitor**: Real-time updates of active tasks
-- **Agent Status Dashboard**: Health and availability of all agents
-- **Task History**: View completed and cancelled tasks
-- **System Health**: Workspace statistics and git status
+### 🤖 **Agent Monitoring**
+- **Live Agent Status**: Real-time view of all agents and their activities
+- **Current Task Tracking**: See which agent is working on which task
+- **Agent Interruption**: Automatically signal agents when tasks are modified
+- **Performance Metrics**: Activity tracking and status updates
 
-### 🎛️ User Experience
-- **Intuitive CLI Menu**: Easy-to-navigate interface
-- **Rich Status Display**: Emoji-enhanced status indicators
-- **Interactive Wizards**: Step-by-step task creation
-- **Live Updates**: Real-time monitoring capabilities
+### 🎨 **Beautiful Interface**
+- **Multi-Panel Layout**: Task tree, agent status, task details, live logs
+- **Color-Coded Status**: Intuitive visual indicators for different states
+- **Keyboard Navigation**: Full keyboard control (arrow keys, shortcuts)
+- **Modal Dialogs**: Professional task creation and editing forms
 
-## Architecture 🏗️
+### 🔄 **Real-time Features**
+- **Live File Watching**: Automatically refresh when workspace changes
+- **Auto-refresh**: Updates every 2 seconds
+- **Streaming Logs**: Real-time activity feed
+- **Instant Feedback**: See changes take effect immediately
 
-```
-Human Input → Interface Agent → Shared Workspace → Agent Reactions
-```
+## 🚀 Installation
 
-The Interface Agent follows the **event-driven architecture**:
-1. **Human assigns task** via CLI interface
-2. **Task written to shared workspace** (git-tracked)
-3. **All agents monitor workspace** for new tasks
-4. **Agents react autonomously** to relevant tasks
-5. **Progress tracked in real-time** via workspace updates
+1. **Install Dependencies**:
+   ```bash
+   cd interface-agent
+   pip install -r requirements.txt
+   ```
 
-## Usage 🎮
+2. **Configure Environment**:
+   ```bash
+   # Ensure .env file has:
+   INTERFACE_MODEL=gemini-2.0-flash
+   GIT_WORKSPACE_PATH=./workspace
+   TASK_MONITOR_INTERVAL=2
+   ```
 
-### Starting the Interface Agent
+## 🎮 Usage
 
+### Launch the Interface
 ```bash
-cd interface-agent
-python -m app.interface_agent.agent
+# From orchestration root directory
+python run_interface.py
 ```
 
-### Main Menu Options
+### Keyboard Shortcuts
+| Key | Action | Description |
+|-----|--------|-------------|
+| `Q` | Quit | Exit the interface |
+| `R` | Refresh | Manually refresh all data |
+| `N` | New Task | Create a new task |
+| `E` | Edit Task | Edit the selected task |
+| `D` | Delete Task | Delete the selected task |
+| `↑↓` | Navigate | Move through task tree |
+| `Tab` | Next Panel | Switch between panels |
+| `Space` | Toggle | Expand/collapse tree nodes |
+
+### Interface Layout
 
 ```
-📋 MAIN MENU
-1. 📝 Create New Task      - Interactive task creation wizard
-2. 👀 View Active Tasks    - List all current tasks  
-3. 📊 View Task Progress   - Detailed task information
-4. 🤖 View Agent Status    - Agent health dashboard
-5. 💾 View Completed Tasks - Task history
-6. 🔄 Live Progress Monitor - Real-time updates
-7. 🧠 System Health        - System statistics
-8. 🚪 Exit                 - Shutdown interface
+┌─ 📋 Task Tree ────────────┬─ 🤖 Agent Status ─────────┐
+│                           │                           │
+│ ⏳ AVAILABLE (2)          │ Agent      Status   Task  │
+│ ├─ demo-task-123...       │ Search     Working  demo  │
+│ └─ analysis-task-456...   │ Terminal   Idle     -     │
+│                           │ File Ops   Idle     -     │
+│ 🔄 CLAIMED (1)            │                           │
+│ └─ search-task-789...     │                           │
+│                           │                           │
+│ ⚡ IN_PROGRESS (1)         │                           │
+│ └─ terminal-cmd-abc...    │                           │
+├───────────────────────────┼───────────────────────────┤
+│ 📄 Task Details           │ 📊 Live Logs             │
+│                           │                           │
+│ 🆔 Task ID: demo-task-123 │ [21:45:32] ✅ Task       │
+│ 📝 Description: Search... │           created         │
+│ 🤖 Agent Type: search     │ [21:45:35] 🔄 Agent      │
+│ 📊 Status: AVAILABLE      │           claimed task    │
+│ ⭐ Priority: 3             │ [21:45:38] ⚡ Processing  │
+│ 🕐 Created: 2025-06-22    │           started         │
+└───────────────────────────┴───────────────────────────┘
 ```
+
+## 🎯 Key Features in Detail
+
+### Live Task Editing
+1. **Select Task**: Navigate to task with arrow keys
+2. **Press 'E'**: Opens edit modal dialog
+3. **Modify Fields**: Description, agent type, priority
+4. **Auto-Interrupt**: Interface signals working agents to stop
+5. **Instant Apply**: Changes save immediately to workspace
+6. **Agent Reaction**: Agents see changes and re-evaluate task claiming
 
 ### Task Creation Workflow
+1. **Press 'N'**: Opens new task modal
+2. **Fill Details**: Description, preferred agent type, priority
+3. **Create**: Task appears immediately in tree
+4. **Agent Discovery**: Agents automatically discover and claim suitable tasks
 
-1. **Enter Task Details**
-   - Title and description
-   - Priority level (High/Medium/Low)
-   - Complexity (Low/Medium/High)
+### Real-time Monitoring
+- **File Watcher**: Monitors workspace for any changes
+- **Auto-refresh**: Updates every 2 seconds
+- **Status Tracking**: Live agent status updates
+- **Progress Logs**: Streaming activity feed
 
-2. **Agent Assignment**
-   - Auto-suggestion based on content
-   - Manual agent selection
-   - Always includes metacognition agent for planning
+## 🔧 Technical Details
 
-3. **Task Deployment**
-   - Written to shared workspace
-   - Git commit with metadata
-   - Agents notified automatically
-
-## Integration 🔗
-
-### Shared Workspace
-- **Location**: `./workspace` (configurable via `TASK_WORKSPACE_PATH`)
-- **Structure**: Git-tracked task directories
-- **Format**: JSON metadata with progress logs
+### Architecture
+- **Textual Framework**: Modern TUI framework with rich widgets
+- **Async Operations**: Non-blocking file watching and updates
+- **Google ADK Integration**: Full agent with workspace tools
+- **File System Monitoring**: Watchdog-based workspace monitoring
 
 ### Agent Communication
-- **Event-Driven**: Agents monitor workspace changes
-- **Decentralized**: No central orchestrator needed
-- **Autonomous**: Agents react independently to tasks
+- **Signal Files**: Creates interrupt signals in `workspace/agent_signals/`
+- **JSON Tasks**: All tasks stored as JSON in `workspace/current_tasks/`
+- **Progress Logs**: Human-readable logs in each task directory
+- **Status Updates**: Real-time task status modifications
+
+### Performance
+- **Efficient Updates**: Only refreshes changed data
+- **Responsive UI**: Smooth keyboard navigation
+- **Resource Friendly**: Minimal CPU usage during idle
+- **Scalable**: Handles hundreds of tasks efficiently
+
+## 🎨 Customization
+
+### Styling
+The interface uses Textual CSS for styling:
+- **Colors**: Status-based color coding
+- **Layouts**: Flexible panel arrangements
+- **Typography**: Clear, readable fonts
+- **Animations**: Smooth transitions
 
 ### Configuration
-Uses the same environment variables as other agents:
-- `TASK_WORKSPACE_PATH`: Workspace location
-- All other agent-specific settings from root `.env`
-
-## Task Lifecycle 📋
-
-```
-1. Human creates task via Interface Agent
-   ↓
-2. Task written to workspace/current_tasks/
-   ↓  
-3. Metacognition Agent analyzes & breaks down task
-   ↓
-4. Specialized agents execute subtasks
-   ↓
-5. Progress tracked in shared workspace
-   ↓
-6. Human monitors via Interface Agent
-   ↓
-7. Task completion → moved to completed_tasks/
+Environment variables for customization:
+```bash
+INTERFACE_MODEL=gemini-2.0-flash    # ADK model
+GIT_WORKSPACE_PATH=./workspace      # Workspace location
+TASK_MONITOR_INTERVAL=2             # Refresh interval (seconds)
 ```
 
-## Example Task Creation 💡
+## 🚨 Troubleshooting
 
+### Common Issues
+
+1. **Import Errors**: Ensure all dependencies installed
+   ```bash
+   cd interface-agent && pip install -r requirements.txt
+   ```
+
+2. **No Tasks Visible**: Check workspace directory exists
+   ```bash
+   mkdir -p workspace/current_tasks
+   ```
+
+3. **Agent Not Responding**: Verify .env configuration
+   ```bash
+   cp .env.example .env  # Edit with your settings
+   ```
+
+4. **Display Issues**: Ensure terminal supports colors
+   ```bash
+   export TERM=xterm-256color
+   ```
+
+## 🎉 Demo
+
+Try the interface with existing tasks:
+```bash
+# Launch with demo task
+python run_interface.py
+
+# Navigate with arrow keys
+# Press 'N' to create a new task
+# Press 'E' to edit a selected task
+# Watch agents react in real-time!
 ```
-✨ CREATE NEW TASK
-📝 Task Title: Research AI frameworks
-📄 Description: Compare LangChain, CrewAI, and AutoGen features
-🎯 Priority: Medium
-⚡ Complexity: High
-🤖 Auto-assigned agents: metacognition_agent, search_agent
-
-✅ Task created: task-2025-06-19-research-ai-frameworks
-🔔 Agents notified and beginning processing...
-```
-
-## Live Monitoring 📊
-
-The live progress monitor provides real-time updates:
-- **Active task status** with progress percentages
-- **Agent activity** indicators
-- **Auto-refresh** every 2 seconds
-- **Ctrl+C** to exit monitor
-
-## Benefits 🎯
-
-✅ **Human-Friendly**: No need to manually edit task files  
-✅ **Real-Time Visibility**: Live progress monitoring  
-✅ **Event-Driven**: Triggers agent ecosystem reactions  
-✅ **Decentralized**: No central orchestrator dependency  
-✅ **Git-Integrated**: Full task history and versioning  
-✅ **Scalable**: Easy to add more agents to the ecosystem  
-
-## Future Enhancements 🚀
-
-- **Web Interface**: Browser-based dashboard
-- **Task Templates**: Predefined task types
-- **Agent Performance Metrics**: Detailed analytics
-- **Task Dependencies**: Complex workflow management
-- **Notification System**: Email/Slack integration
-- **API Interface**: Programmatic task creation
 
 ---
 
-The Interface Agent bridges the gap between human intent and agent execution, making the powerful orchestration system accessible and manageable through an intuitive interface. 🎯 
+**🎛️ Experience the future of orchestration control - where every keystroke shapes your agent workflow in real-time!** 

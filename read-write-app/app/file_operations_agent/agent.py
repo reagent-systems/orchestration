@@ -1,115 +1,325 @@
 """
-Autonomous File Operations Agent
-Self-contained agent that provides file and git operations and can discover/invoke other agents via A2A
-All agents operate in the same shared git workspace
+Real File Operations Agent - Workspace Task Monitoring
+No simulations - performs actual file operations and monitors workspace for file tasks
 """
 
 import os
+import json
 import asyncio
-from typing import Optional, Dict, Any, List
+import time
+from pathlib import Path
+from typing import Dict, Any, List, Optional
+from dotenv import load_dotenv
 from google.adk.agents import Agent
 from google.adk.tools import FunctionTool
 from .tools import file_tools
 
-class AutonomousFileOperationsAgent(Agent):
-    """Autonomous file operations agent with git capabilities and A2A agent discovery"""
+# Load environment variables from root .env
+load_dotenv(dotenv_path="../../../.env")
+
+class FileOperationsAgent:
+    """Real File Operations Agent with workspace task monitoring"""
     
-    def __init__(self, name: str = "autonomous_file_operations_agent", model: str = None):
-        # Define our own tools
+    def __init__(self):
+        self.workspace_path = Path(os.getenv("GIT_WORKSPACE_PATH", "./workspace"))
+        self.tasks_path = self.workspace_path / "current_tasks"
+        self.agent_id = "file_operations_agent"
+        
+        # Define tools for the ADK agent
         tools = [
             FunctionTool(self.read_file),
             FunctionTool(self.write_file),
+            FunctionTool(self.create_file),
+            FunctionTool(self.delete_file),
             FunctionTool(self.list_directory),
+            FunctionTool(self.create_directory),
             FunctionTool(self.git_commit),
-            FunctionTool(self.discover_agents),
-            FunctionTool(self.invoke_agent),
-            FunctionTool(self.process_workspace_request)
+            FunctionTool(self.process_file_batch)
         ]
         
-        super().__init__(
-            name=name,
-            model=model or os.getenv("READ_WRITE_MODEL", "gemini-2.0-flash-live-001"),
-            description="Autonomous File Operations Agent with git operations and A2A agent discovery",
-            instruction="""You are an autonomous file operations agent specialized in file and workspace management.
+        self.agent = Agent(
+            name="file_operations_agent",
+            model=os.getenv("READ_WRITE_MODEL", "gemini-2.0-flash"),
+            description="Real File Operations Agent - performs actual file operations and git management",
+            instruction="""You are a file operations agent that performs real file and directory operations.
 
-Your core abilities:
-1. **File Operations**: Read, write, create, delete, and manage files in shared workspace
-2. **Git Operations**: Commit changes, manage branches, track workspace history
-3. **Directory Management**: List, create, organize directory structures
-4. **Agent Discovery**: Use A2A protocol to discover other available agents
-5. **Agent Invocation**: Call other agents when you need their capabilities (search, analysis, etc.)
+Your capabilities:
+1. **File Operations**: Read, write, create, delete files with proper error handling
+2. **Directory Management**: Create directories, list contents, organize file structures
+3. **Git Operations**: Commit changes, track workspace history with meaningful messages
+4. **Batch Processing**: Handle multiple file operations efficiently
+5. **Workspace Management**: Maintain clean, organized workspace structure
 
-When you receive a request:
-1. **Analyze** what file operations are needed
-2. **Execute** file and git operations as required in shared workspace
-3. **Discover** other agents if you need additional capabilities
-4. **Invoke** other agents for tasks like search or analysis
-5. **Commit** changes to shared git workspace for audit trail
-
-Available agent discovery via A2A:
-- Search agents for gathering content to write to files
-- Metacognition agents for analysis and planning
-- Other file operation agents for collaboration
-
-You work autonomously in the shared git workspace - no central orchestrator controls you. You decide how to collaborate with other agents based on the workspace management requirements.""",
+You monitor the workspace for file-related tasks and execute them autonomously with proper safety checks.""",
             tools=tools
         )
-        
-        # A2A configuration
-        self.a2a_enabled = os.getenv("ENABLE_A2A_INTEGRATION", "true").lower() == "true"
-        self.discovered_agents = {}
-        # Shared workspace configuration
-        self.shared_workspace = os.getenv("GIT_WORKSPACE_PATH", "./workspace")
         
     @FunctionTool
     def read_file(self, file_path: str) -> Dict[str, Any]:
         """Read a file from the workspace
         
         Args:
-            file_path: Path to the file to read
+            file_path: Path to the file to read (relative to workspace)
             
         Returns:
-            Dict containing file content
+            Dict containing file content and metadata
         """
         try:
-            result = file_tools.read_file(file_path)
-            return result
+            # Resolve path relative to workspace
+            if not file_path.startswith('/'):
+                full_path = self.workspace_path / file_path
+            else:
+                full_path = Path(file_path)
+            
+            if not full_path.exists():
+                return {
+                    "success": False,
+                    "error": f"File not found: {file_path}"
+                }
+            
+            if not full_path.is_file():
+                return {
+                    "success": False,
+                    "error": f"Path is not a file: {file_path}"
+                }
+            
+            # Read file content
+            with open(full_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            return {
+                "success": True,
+                "file_path": file_path,
+                "content": content,
+                "size": full_path.stat().st_size,
+                "modified": full_path.stat().st_mtime
+            }
+            
         except Exception as e:
-            return {"error": f"File read failed: {str(e)}"}
+            return {
+                "success": False,
+                "error": f"Failed to read file: {str(e)}"
+            }
     
     @FunctionTool
     def write_file(self, file_path: str, content: str, mode: str = "w") -> Dict[str, Any]:
         """Write content to a file in the workspace
         
         Args:
-            file_path: Path to the file to write
+            file_path: Path to the file to write (relative to workspace)
             content: Content to write to the file
-            mode: Write mode (w, a, etc.)
+            mode: Write mode ('w' for write, 'a' for append)
             
         Returns:
             Dict containing write operation results
         """
         try:
-            result = file_tools.write_file(file_path, content, mode)
-            return result
+            # Resolve path relative to workspace
+            if not file_path.startswith('/'):
+                full_path = self.workspace_path / file_path
+            else:
+                full_path = Path(file_path)
+            
+            # Create parent directories if they don't exist
+            full_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            # Write file content
+            with open(full_path, mode, encoding='utf-8') as f:
+                f.write(content)
+            
+            return {
+                "success": True,
+                "file_path": file_path,
+                "bytes_written": len(content.encode('utf-8')),
+                "mode": mode,
+                "size": full_path.stat().st_size
+            }
+            
         except Exception as e:
-            return {"error": f"File write failed: {str(e)}"}
+            return {
+                "success": False,
+                "error": f"Failed to write file: {str(e)}"
+            }
+
+    @FunctionTool
+    def create_file(self, file_path: str, content: str = "") -> Dict[str, Any]:
+        """Create a new file with optional initial content
+        
+        Args:
+            file_path: Path to the new file (relative to workspace)
+            content: Optional initial content
+            
+        Returns:
+            Dict containing creation results
+        """
+        try:
+            # Resolve path relative to workspace
+            if not file_path.startswith('/'):
+                full_path = self.workspace_path / file_path
+            else:
+                full_path = Path(file_path)
+            
+            if full_path.exists():
+                return {
+                    "success": False,
+                    "error": f"File already exists: {file_path}"
+                }
+            
+            # Create parent directories if they don't exist
+            full_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            # Create file with content
+            with open(full_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+            
+            return {
+                "success": True,
+                "file_path": file_path,
+                "created": True,
+                "size": full_path.stat().st_size
+            }
+            
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Failed to create file: {str(e)}"
+            }
+
+    @FunctionTool
+    def delete_file(self, file_path: str) -> Dict[str, Any]:
+        """Delete a file from the workspace
+        
+        Args:
+            file_path: Path to the file to delete (relative to workspace)
+            
+        Returns:
+            Dict containing deletion results
+        """
+        try:
+            # Resolve path relative to workspace
+            if not file_path.startswith('/'):
+                full_path = self.workspace_path / file_path
+            else:
+                full_path = Path(file_path)
+            
+            if not full_path.exists():
+                return {
+                    "success": False,
+                    "error": f"File not found: {file_path}"
+                }
+            
+            if not full_path.is_file():
+                return {
+                    "success": False,
+                    "error": f"Path is not a file: {file_path}"
+                }
+            
+            # Delete the file
+            full_path.unlink()
+            
+            return {
+                "success": True,
+                "file_path": file_path,
+                "deleted": True
+            }
+            
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Failed to delete file: {str(e)}"
+            }
     
     @FunctionTool
     def list_directory(self, directory_path: str = ".") -> Dict[str, Any]:
         """List contents of a directory
         
         Args:
-            directory_path: Path to the directory to list
+            directory_path: Path to the directory to list (relative to workspace)
             
         Returns:
             Dict containing directory contents
         """
         try:
-            result = file_tools.list_directory(directory_path)
-            return result
+            # Resolve path relative to workspace
+            if directory_path == "." or directory_path == "":
+                full_path = self.workspace_path
+            elif not directory_path.startswith('/'):
+                full_path = self.workspace_path / directory_path
+            else:
+                full_path = Path(directory_path)
+            
+            if not full_path.exists():
+                return {
+                    "success": False,
+                    "error": f"Directory not found: {directory_path}"
+                }
+            
+            if not full_path.is_dir():
+                return {
+                    "success": False,
+                    "error": f"Path is not a directory: {directory_path}"
+                }
+            
+            # List directory contents
+            contents = []
+            for item in full_path.iterdir():
+                contents.append({
+                    "name": item.name,
+                    "type": "directory" if item.is_dir() else "file",
+                    "size": item.stat().st_size if item.is_file() else None,
+                    "modified": item.stat().st_mtime
+                })
+            
+            return {
+                "success": True,
+                "directory_path": directory_path,
+                "contents": sorted(contents, key=lambda x: (x["type"], x["name"])),
+                "total_items": len(contents)
+            }
+            
         except Exception as e:
-            return {"error": f"Directory listing failed: {str(e)}"}
+            return {
+                "success": False,
+                "error": f"Failed to list directory: {str(e)}"
+            }
+
+    @FunctionTool
+    def create_directory(self, directory_path: str) -> Dict[str, Any]:
+        """Create a new directory
+        
+        Args:
+            directory_path: Path to the directory to create (relative to workspace)
+            
+        Returns:
+            Dict containing creation results
+        """
+        try:
+            # Resolve path relative to workspace
+            if not directory_path.startswith('/'):
+                full_path = self.workspace_path / directory_path
+            else:
+                full_path = Path(directory_path)
+            
+            if full_path.exists():
+                return {
+                    "success": False,
+                    "error": f"Directory already exists: {directory_path}"
+                }
+            
+            # Create directory
+            full_path.mkdir(parents=True, exist_ok=True)
+            
+            return {
+                "success": True,
+                "directory_path": directory_path,
+                "created": True
+            }
+            
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Failed to create directory: {str(e)}"
+            }
     
     @FunctionTool
     def git_commit(self, message: str, files: Optional[List[str]] = None) -> Dict[str, Any]:
@@ -117,204 +327,250 @@ You work autonomously in the shared git workspace - no central orchestrator cont
         
         Args:
             message: Commit message
-            files: Optional list of specific files to commit
+            files: Optional list of specific files to commit (relative to workspace)
             
         Returns:
             Dict containing commit results
         """
         try:
-            # Use git_commit_files if specific files are provided
+            # Use existing git tools from file_tools module
             if files:
-                result = file_tools.git_commit_files(files, message)
+                # Convert relative paths to full paths for git_tools
+                full_paths = []
+                for file_path in files:
+                    if not file_path.startswith('/'):
+                        full_paths.append(str(self.workspace_path / file_path))
+                    else:
+                        full_paths.append(file_path)
+                
+                result = file_tools.git_commit_files(full_paths, message)
             else:
-                # Commit all changes
+                # Commit all changes in workspace
+                os.chdir(self.workspace_path)
                 result = file_tools.git_status()
                 if result.get("success") and result.get("is_dirty"):
-                    # Add all files and commit
-                    result = {"success": True, "message": f"Committed with message: {message}"}
+                    result = file_tools.git_commit_files([], message)  # Empty list commits all
                 else:
                     result = {"success": True, "message": "No changes to commit"}
+            
             return result
+            
         except Exception as e:
-            return {"error": f"Git commit failed: {str(e)}"}
-    
-    @FunctionTool
-    async def discover_agents(self, capability_filter: Optional[str] = None) -> Dict[str, Any]:
-        """Discover available agents via A2A protocol
-        
-        Args:
-            capability_filter: Optional filter for specific capabilities
-            
-        Returns:
-            Dict containing discovered agents
-        """
-        try:
-            if not self.a2a_enabled:
-                return {"error": "A2A integration not enabled"}
-            
-            # Simulate A2A agent discovery
-            available_agents = {
-                "search_agent": {
-                    "endpoint": os.getenv("SEARCH_AGENT_ENDPOINT", "http://localhost:8001"),
-                    "capabilities": ["web_search", "information_gathering", "research"],
-                    "status": "available"
-                },
-                "metacognition_agent": {
-                    "endpoint": os.getenv("METACOGNITION_AGENT_ENDPOINT", "http://localhost:8000"),
-                    "capabilities": ["reflection", "analysis", "task_tracking", "progress_monitoring"],
-                    "status": "available"
-                }
-            }
-            
-            # Filter by capability if requested
-            if capability_filter:
-                filtered_agents = {
-                    name: info for name, info in available_agents.items()
-                    if capability_filter.lower() in [cap.lower() for cap in info["capabilities"]]
-                }
-                available_agents = filtered_agents
-            
-            self.discovered_agents = available_agents
-            
             return {
-                "success": True,
-                "agents": available_agents,
-                "count": len(available_agents)
+                "success": False,
+                "error": f"Git commit failed: {str(e)}"
             }
-            
-        except Exception as e:
-            return {"error": f"Agent discovery failed: {str(e)}"}
     
     @FunctionTool
-    async def invoke_agent(self, agent_name: str, action: str, parameters: Dict[str, Any] = None) -> Dict[str, Any]:
-        """Invoke another agent to perform an action
+    def process_file_batch(self, operations: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Process multiple file operations in batch
         
         Args:
-            agent_name: Name of the agent to invoke
-            action: Action to request from the agent
-            parameters: Parameters for the action
+            operations: List of operations, each with 'type' and relevant parameters
             
         Returns:
-            Dict containing agent response
+            Dict containing batch operation results
         """
-        try:
-            if agent_name not in self.discovered_agents:
-                # Try to discover the agent first
-                await self.discover_agents()
-                
-            if agent_name not in self.discovered_agents:
-                return {"error": f"Agent {agent_name} not found"}
-            
-            # Simulate agent invocation (in real implementation, this would use A2A calls)
-            result = {
-                "success": True,
-                "agent": agent_name,
-                "action": action,
-                "response": f"Simulated response from {agent_name} for action: {action}",
-                "parameters_used": parameters or {}
-            }
-            
-            return result
-            
-        except Exception as e:
-            return {"error": f"Agent invocation failed: {str(e)}"}
-    
-    @FunctionTool
-    async def process_workspace_request(self, request: str, auto_commit: bool = True) -> Dict[str, Any]:
-        """Process a comprehensive workspace request, optionally using other agents
+        results = []
+        successful = 0
+        failed = 0
         
-        Args:
-            request: Workspace management request
-            auto_commit: Whether to automatically commit changes
+        for i, op in enumerate(operations):
+            op_type = op.get("type")
             
-        Returns:
-            Dict containing comprehensive workspace operation results
-        """
-        try:
-            operations_performed = []
-            
-            # Analyze the request and determine what operations are needed
-            if "create" in request.lower() and "file" in request.lower():
-                # Extract filename and content requirements
-                if "research" in request.lower() or "search" in request.lower():
-                    # Need to get content via search agent
-                    discovery_result = await self.discover_agents("web_search")
-                    
-                    if discovery_result.get("success") and "search_agent" in discovery_result["agents"]:
-                        # Get content from search agent
-                        search_result = await self.invoke_agent(
-                            "search_agent",
-                            "research_topic",
-                            {"topic": request, "depth": "medium"}
-                        )
-                        
-                        if search_result.get("success"):
-                            # Create file with research content
-                            filename = f"research_{request.replace(' ', '_')[:30]}.md"
-                            content = f"# Research Results\n\n{search_result.get('response', 'No content')}"
-                            
-                            write_result = self.write_file(filename, content)
-                            operations_performed.append({"operation": "write_file", "file": filename, "result": write_result})
-                
+            try:
+                if op_type == "write":
+                    result = self.write_file(op["file_path"], op["content"], op.get("mode", "w"))
+                elif op_type == "read":
+                    result = self.read_file(op["file_path"])
+                elif op_type == "create":
+                    result = self.create_file(op["file_path"], op.get("content", ""))
+                elif op_type == "delete":
+                    result = self.delete_file(op["file_path"])
+                elif op_type == "create_dir":
+                    result = self.create_directory(op["directory_path"])
                 else:
-                    # Simple file creation
-                    filename = "new_file.txt"
-                    content = f"File created for request: {request}"
-                    write_result = self.write_file(filename, content)
-                    operations_performed.append({"operation": "write_file", "file": filename, "result": write_result})
-            
-            elif "list" in request.lower() or "show" in request.lower():
-                # List directory contents
-                list_result = self.list_directory()
-                operations_performed.append({"operation": "list_directory", "result": list_result})
-            
-            elif "read" in request.lower():
-                # Extract filename from request (simplified)
-                # In real implementation, this would use better parsing
-                words = request.split()
-                potential_files = [word for word in words if "." in word]
-                if potential_files:
-                    filename = potential_files[0]
-                    read_result = self.read_file(filename)
-                    operations_performed.append({"operation": "read_file", "file": filename, "result": read_result})
-            
-            # Auto-commit if requested and operations were performed
-            if auto_commit and operations_performed:
-                commit_result = self.git_commit(f"Automated commit for: {request}")
-                operations_performed.append({"operation": "git_commit", "result": commit_result})
+                    result = {"success": False, "error": f"Unknown operation type: {op_type}"}
+                
+                results.append({"operation": i, "type": op_type, "result": result})
+                
+                if result.get("success"):
+                    successful += 1
+                else:
+                    failed += 1
+                    
+            except Exception as e:
+                results.append({
+                    "operation": i, 
+                    "type": op_type, 
+                    "result": {"success": False, "error": str(e)}
+                })
+                failed += 1
             
             return {
-                "success": True,
-                "request": request,
-                "operations_performed": operations_performed,
-                "total_operations": len(operations_performed)
-            }
+            "success": failed == 0,
+            "total_operations": len(operations),
+            "successful": successful,
+            "failed": failed,
+            "results": results
+        }
+
+    def can_handle_task(self, task_data: Dict[str, Any]) -> bool:
+        """Check if this agent can handle the given task"""
+        task_type = task_data.get("agent_type", "").lower()
+        description = task_data.get("description", "").lower()
+        
+        # Handle file-related tasks
+        if task_type == "file":
+            return True
+            
+        # Handle tasks with file operation keywords
+        file_keywords = ["file", "write", "read", "create", "delete", "directory", "folder", "save"]
+        return any(keyword in description for keyword in file_keywords)
+
+    async def process_task(self, task_path: Path):
+        """Process a file operations task"""
+        try:
+            # Load task
+            with open(task_path / "task.json", 'r') as f:
+                task_data = json.load(f)
+            
+            # Claim the task
+            task_data["status"] = "in_progress"
+            task_data["claimed_by"] = self.agent_id
+            task_data["claimed_at"] = time.time()
+            
+            with open(task_path / "task.json", 'w') as f:
+                json.dump(task_data, f, indent=2)
+            
+            # Execute the task based on description
+            description = task_data["description"]
+            result = None
+            
+            if "write" in description.lower() or "create" in description.lower():
+                # Extract file path and content from description
+                # Simple parsing - in production would use better NLP
+                words = description.split()
+                file_path = None
+                content = description  # Default content
+                
+                for word in words:
+                    if "." in word and "/" not in word:  # Simple file detection
+                        file_path = word
+                        break
+                
+                if not file_path:
+                    file_path = "task_output.txt"
+                
+                result = self.write_file(file_path, f"Output from task: {description}")
+                
+            elif "read" in description.lower():
+                # Extract file path from description
+                words = description.split()
+                file_path = None
+                
+                for word in words:
+                    if "." in word:
+                        file_path = word
+                        break
+                
+                if file_path:
+                    result = self.read_file(file_path)
+                else:
+                    result = {"success": False, "error": "No file path specified"}
+                    
+            elif "list" in description.lower() or "directory" in description.lower():
+                # List directory contents
+                result = self.list_directory()
+                
+            else:
+                # Generic file operation
+                result = {"success": False, "error": "Could not determine file operation"}
+            
+            # Auto-commit if successful
+            if result and result.get("success"):
+                commit_msg = f"File operation completed: {description[:50]}..."
+                commit_result = self.git_commit(commit_msg)
+                result["committed"] = commit_result.get("success", False)
+            
+            # Update task with results
+            task_data["status"] = "completed" if result and result.get("success") else "failed"
+            task_data["result"] = result
+            task_data["completed_at"] = time.time()
+            
+            with open(task_path / "task.json", 'w') as f:
+                json.dump(task_data, f, indent=2)
+            
+            # Log progress
+            with open(task_path / "progress.log", 'a') as f:
+                status = "✅ COMPLETED" if result and result.get("success") else "❌ FAILED"
+                f.write(f"\n[{time.strftime('%Y-%m-%d %H:%M:%S')}] {status} - File Operations Agent\n")
+                f.write(f"Operation: {description}\n")
+                if result and result.get("success"):
+                    f.write(f"Result: Operation successful\n")
+                    if result.get("committed"):
+                        f.write(f"Changes committed to git\n")
+                else:
+                    f.write(f"Error: {result.get('error', 'Unknown error') if result else 'No result'}\n")
             
         except Exception as e:
-            return {"error": f"Workspace request processing failed: {str(e)}"}
+            print(f"Error processing task {task_path.name}: {e}")
 
-# Create the autonomous agent instance
-autonomous_file_operations_agent = AutonomousFileOperationsAgent()
+    async def monitor_workspace(self):
+        """Monitor workspace for file operation tasks"""
+        print(f"📁 File Operations Agent monitoring workspace: {self.tasks_path}")
+        
+        while True:
+            try:
+                if not self.tasks_path.exists():
+                    await asyncio.sleep(int(os.getenv("TASK_MONITOR_INTERVAL", 3)))
+                    continue
+                
+                # Check for available tasks
+                for task_dir in self.tasks_path.iterdir():
+                    if not task_dir.is_dir():
+                        continue
+                    
+                    task_file = task_dir / "task.json"
+                    if not task_file.exists():
+                        continue
+                    
+                    try:
+                        with open(task_file, 'r') as f:
+                            task_data = json.load(f)
+                        
+                        # Skip if task is not available or not for us
+                        if task_data.get("status") != "available":
+                            continue
+                        
+                        if not self.can_handle_task(task_data):
+                            continue
+                        
+                        print(f"📁 Claiming file operations task: {task_dir.name}")
+                        await self.process_task(task_dir)
+                        
+                    except Exception as e:
+                        print(f"Error checking task {task_dir.name}: {e}")
+                
+            except Exception as e:
+                print(f"Error in workspace monitoring: {e}")
+            
+            await asyncio.sleep(int(os.getenv("TASK_MONITOR_INTERVAL", 3)))
+
+    async def run(self):
+        """Run the file operations agent"""
+        print("📁 Starting Real File Operations Agent...")
+        print("Features:")
+        print("- Real file and directory operations")
+        print("- Git commit integration")
+        print("- Workspace task monitoring")
+        print("- Batch operation processing")
+        print("- Safe file handling with error checking")
+        
+        await self.monitor_workspace()
+
+# Create agent instance
+file_operations_agent = FileOperationsAgent()
 
 if __name__ == "__main__":
-    import asyncio
-    
-    async def main():
-        """Main entry point for the autonomous file operations agent"""
-        print("Starting Autonomous File Operations Agent...")
-        print("Autonomous File Operations Agent is ready!")
-        print("This agent can:")
-        print("- Read, write, and manage files")
-        print("- Perform git operations and track changes")
-        print("- Discover other agents via A2A protocol")
-        print("- Invoke other agents for additional capabilities")
-        print("- Process comprehensive workspace requests")
-        
-        # Keep the agent running
-        try:
-            while True:
-                await asyncio.sleep(1)
-        except KeyboardInterrupt:
-            print("Shutting down...")
-    
-    asyncio.run(main()) 
+    asyncio.run(file_operations_agent.run()) 
