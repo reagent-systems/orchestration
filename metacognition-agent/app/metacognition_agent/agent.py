@@ -1,367 +1,671 @@
 """
-Autonomous Metacognition Agent
-Self-contained agent that provides metacognitive reflection and can discover/invoke other agents via A2A
-All agents operate in the same shared git workspace
+Metacognition Agent - Task Expansion Specialist
+Specialized ADK agent that expands tasks requiring detailed planning and detects/resolves stuck tasks
 """
 
 import os
 import asyncio
-from typing import Optional, Dict, Any, List, ClassVar
+import json
+import uuid
+from datetime import datetime
+from pathlib import Path
+from typing import Dict, Any, List, Optional
 from google.adk.agents import Agent
 from google.adk.tools import FunctionTool
 
-# Import our custom components
-from .metacognition import metacognition_engine, ReflectionType
-from .task_tracker import task_tracker
-
-class AutonomousMetacognitionAgent(Agent):
-    """Autonomous metacognition agent with self-reflection and A2A agent discovery"""
+class MetacognitionAgent(Agent):
+    """Specialized agent for task expansion, detailed planning, and stuck task resolution"""
     
-    # Declare instance variables to avoid Pydantic field conflicts
-    a2a_enabled: bool = True
-    discovered_agents: Dict[str, Any] = {}
-    shared_workspace: str = "./workspace"
-    
-    def __init__(self, name: str = "autonomous_metacognition_agent", model: str = None):
-        # Define our own tools using FunctionTool directly
+    def __init__(self, name: str = "metacognition_agent", model: str = None):
+        # Single-purpose tools - only planning and task expansion
         tools = [
-            FunctionTool(self.reflect_on_task),
-            FunctionTool(self.analyze_progress),
-            FunctionTool(self.discover_agents),
-            FunctionTool(self.invoke_agent),
-            FunctionTool(self.track_task_step),
-            FunctionTool(self.assess_completion)
+            FunctionTool(self.expand_planning_task),
+            FunctionTool(self.create_detailed_plan),
+            FunctionTool(self.resolve_stuck_task)
         ]
         
         super().__init__(
             name=name,
             model=model or os.getenv("METACOGNITION_MODEL", "gemini-2.0-flash-live-001"),
-            description="Autonomous Metacognition Agent with self-reflection and A2A agent discovery",
-            instruction="""You are an autonomous metacognition agent that provides self-reflection and awareness capabilities.
+            description="Task expansion specialist for detailed planning and stuck task resolution",
+            instruction="""You are a task expansion and planning specialist. Your ONLY job is to take high-level tasks that need planning and expand them into detailed, executable steps.
 
-Your core abilities:
-1. **Self-Reflection**: Analyze tasks, progress, and system performance
-2. **Agent Discovery**: Use A2A protocol to discover other available agents
-3. **Agent Invocation**: Directly call other agents when you need their capabilities
-4. **Task Tracking**: Track orchestration steps in the shared git workspace
-5. **Progress Analysis**: Analyze and reflect on task completion and bottlenecks
+Your specializations:
+1. **Task Expansion**: Take vague planning tasks and create specific, actionable steps
+2. **Detailed Planning**: Create comprehensive execution strategies with specific commands/approaches
+3. **Stuck Task Resolution**: Detect loops and create alternative approaches when tasks fail repeatedly
 
-When you receive a request:
-1. **Reflect** on what needs to be done
-2. **Discover** what other agents are available if needed
-3. **Invoke** other agents directly for capabilities you don't have
-4. **Track** orchestration steps in shared git workspace for audit trail
-5. **Analyze** the results and provide insights
+When you see a task that needs planning:
+1. Analyze what the task requires in detail
+2. Create specific, executable steps with concrete commands/approaches
+3. Consider context from previous steps and available information
+4. Provide alternative approaches if the primary plan might fail
 
-Available agent discovery via A2A:
-- Search agents for information gathering
-- File operation agents for workspace management
-- Other metacognition agents for collaboration
+Example:
+Input: "Plan analysis strategy for: analyze codebase for syntax flaws"
+Your expansion:
+1. "Identify file types in codebase using find command"
+2. "Choose appropriate linting tools (pylint for .py, eslint for .js)"  
+3. "Define specific error patterns to search for"
+4. "Create command sequence for systematic analysis"
 
-You work autonomously in the shared git workspace - no central orchestrator controls you. You decide how to collaborate with other agents based on the task requirements.""",
+Keep it practical, specific, and executable.""",
             tools=tools
         )
         
-        # A2A configuration
-        self.a2a_enabled = os.getenv("ENABLE_A2A_INTEGRATION", "true").lower() == "true"
-        self.discovered_agents = {}
-        # Shared workspace configuration
-        self.shared_workspace = os.getenv("TASK_WORKSPACE_PATH", "./workspace")
+        self.workspace_path = Path(os.getenv("TASK_WORKSPACE_PATH", "./workspace"))
+        self.current_tasks_dir = self.workspace_path / "current_tasks"
+        
+        # Track task attempts to detect loops
+        self.task_attempts = {}
     
-    # Tool methods (no decorators needed since we create FunctionTool instances in __init__)
-    async def reflect_on_task(self, task_description: str, context: Dict[str, Any] = None) -> Dict[str, Any]:
-        """Reflect on a task and provide metacognitive insights
+    async def expand_planning_task(self, task_description: str, task_id: str, context: Dict[str, Any] = None) -> Dict[str, Any]:
+        """Expand a planning task into detailed, executable steps
         
         Args:
-            task_description: Description of the task to reflect on
-            context: Additional context about the task
+            task_description: The planning task to expand
+            task_id: ID of the task being expanded
+            context: Additional context from previous steps or workspace
             
         Returns:
-            Dict containing reflection insights
+            Dict containing expanded steps and execution plan
         """
         try:
-            # Create a task for tracking in shared workspace
-            task_id = task_tracker.create_task(
-                task_description=f"Metacognitive reflection: {task_description}",
-                user_request=task_description,
-                estimated_steps=3
-            )
+            print(f"🧠 Expanding planning task: {task_description}")
             
-            # Start the task
-            task_tracker.start_task(task_id)
+            # Analyze the planning requirements
+            planning_analysis = self._analyze_planning_requirements(task_description, context or {})
             
-            # Perform reflection
-            thought = await metacognition_engine.think(
-                ReflectionType.TASK_ANALYSIS,
-                f"Reflecting on task: {task_description}",
-                context or {}
-            )
+            # Create detailed execution plan
+            detailed_steps = self._create_detailed_execution_plan(task_description, planning_analysis)
             
-            # Track this reflection step in shared workspace
-            step_id = task_tracker.add_task_step(
-                task_id=task_id,
-                step_description="Metacognitive reflection and analysis",
-                agent_name=self.name,
-                action_type="reflection",
-                parameters={"task": task_description, "workspace": self.shared_workspace}
-            )
-            
-            task_tracker.update_step_status(task_id, step_id, "completed", 
-                result={"reflection": thought.content, "insights": thought.insights})
-            
-            return {
-                "success": True,
-                "task_id": task_id,
-                "reflection": thought.content,
-                "insights": thought.insights,
-                "confidence": thought.confidence,
-                "workspace": self.shared_workspace
-            }
-            
-        except Exception as e:
-            return {"error": f"Reflection failed: {str(e)}"}
-    
-    async def discover_agents(self, capability_filter: Optional[str] = None) -> Dict[str, Any]:
-        """Discover available agents via A2A protocol
-        
-        Args:
-            capability_filter: Optional filter for specific capabilities
-            
-        Returns:
-            Dict containing discovered agents
-        """
-        try:
-            if not self.a2a_enabled:
-                return {"error": "A2A integration not enabled"}
-            
-            # Simulate A2A agent discovery (in real implementation, this would use A2A SDK)
-            available_agents = {
-                "search_agent": {
-                    "endpoint": os.getenv("SEARCH_AGENT_ENDPOINT", "http://localhost:8001"),
-                    "capabilities": ["web_search", "information_gathering", "research"],
-                    "status": "available"
-                },
-                "file_operations_agent": {
-                    "endpoint": os.getenv("READ_WRITE_AGENT_ENDPOINT", "http://localhost:8002"),
-                    "capabilities": ["file_read", "file_write", "git_operations", "workspace_management"],
-                    "status": "available"
-                }
-            }
-            
-            # Filter by capability if requested
-            if capability_filter:
-                filtered_agents = {
-                    name: info for name, info in available_agents.items()
-                    if capability_filter.lower() in [cap.lower() for cap in info["capabilities"]]
-                }
-                available_agents = filtered_agents
-            
-            self.discovered_agents = available_agents
-            
-            # Reflect on discovered agents
-            await metacognition_engine.think(
-                ReflectionType.AGENT_PERFORMANCE,
-                f"Discovered {len(available_agents)} agents with capabilities: "
-                f"{', '.join(agent_info['capabilities'] for agent_info in available_agents.values())}",
-                {"discovered_agents": available_agents}
-            )
-            
-            return {
-                "success": True,
-                "agents": available_agents,
-                "count": len(available_agents)
-            }
-            
-        except Exception as e:
-            return {"error": f"Agent discovery failed: {str(e)}"}
-    
-    async def invoke_agent(self, agent_name: str, action: str, parameters: Dict[str, Any] = None) -> Dict[str, Any]:
-        """Invoke another agent to perform an action
-        
-        Args:
-            agent_name: Name of the agent to invoke
-            action: Action to request from the agent
-            parameters: Parameters for the action
-            
-        Returns:
-            Dict containing agent response
-        """
-        try:
-            if agent_name not in self.discovered_agents:
-                # Try to discover the agent first
-                await self.discover_agents()
+            # Create subtasks for the detailed steps
+            created_subtasks = []
+            for i, step in enumerate(detailed_steps):
+                subtask_id = f"{task_id}-detail-{i+1:02d}"
+                subtask = self._create_execution_subtask(subtask_id, step, i == 0)
+                created_subtasks.append(subtask)
                 
-            if agent_name not in self.discovered_agents:
-                return {"error": f"Agent {agent_name} not found"}
+                # Save subtask to workspace
+                self._save_subtask_to_workspace(subtask)
             
-            agent_info = self.discovered_agents[agent_name]
+            # Mark original planning task as completed
+            self._mark_planning_task_completed(task_id, detailed_steps)
             
-            # Simulate agent invocation (in real implementation, this would use A2A calls)
-            result = {
+            expansion_result = {
                 "success": True,
-                "agent": agent_name,
-                "action": action,
-                "response": f"Simulated response from {agent_name} for action: {action}",
-                "parameters_used": parameters or {}
-            }
-            
-            # Reflect on the agent interaction
-            await metacognition_engine.think(
-                ReflectionType.AGENT_PERFORMANCE,
-                f"Invoked {agent_name} for action: {action}. Result: {result.get('response', 'No response')}",
-                {"agent_invocation": result}
-            )
-            
-            return result
-            
-        except Exception as e:
-            return {"error": f"Agent invocation failed: {str(e)}"}
-    
-    def track_task_step(self, task_description: str, step_description: str, status: str = "completed") -> Dict[str, Any]:
-        """Track a task step in git workspace
-        
-        Args:
-            task_description: Description of the overall task
-            step_description: Description of this specific step
-            status: Status of the step (pending, completed, failed)
-            
-        Returns:
-            Dict containing tracking results
-        """
-        try:
-            # Create or find existing task
-            task_id = task_tracker.create_task(task_description, task_description, 5)
-            
-            # Add the step
-            step_id = task_tracker.add_task_step(
-                task_id=task_id,
-                step_description=step_description,
-                agent_name=self.name,
-                action_type="tracking",
-                parameters={"description": step_description}
-            )
-            
-            # Update step status
-            task_tracker.update_step_status(task_id, step_id, status)
-            
-            return {
-                "success": True,
+                "original_task": task_description,
                 "task_id": task_id,
-                "step_id": step_id,
-                "status": status
+                "planning_analysis": planning_analysis,
+                "detailed_steps": len(detailed_steps),
+                "subtasks_created": created_subtasks,
+                "execution_strategy": planning_analysis["strategy"]
             }
             
+            print(f"✅ Planning expansion complete: {len(detailed_steps)} detailed steps created")
+            return expansion_result
+            
         except Exception as e:
-            return {"error": f"Task tracking failed: {str(e)}"}
+            error_result = {
+                "success": False,
+                "error": f"Planning expansion failed: {str(e)}",
+                "original_task": task_description,
+                "task_id": task_id
+            }
+            print(f"❌ Planning expansion failed: {e}")
+            return error_result
     
-    async def analyze_progress(self, task_id: Optional[str] = None) -> Dict[str, Any]:
-        """Analyze progress of tasks and provide insights
+    async def create_detailed_plan(self, objective: str, available_info: Dict[str, Any] = None) -> Dict[str, Any]:
+        """Create a detailed execution plan for a specific objective
         
         Args:
-            task_id: Optional specific task ID to analyze
+            objective: What needs to be accomplished
+            available_info: Information available from previous steps
             
         Returns:
-            Dict containing progress analysis
+            Dict containing detailed plan with specific commands and approaches
         """
         try:
-            if task_id:
-                # Analyze specific task
-                task = task_tracker.get_task(task_id)
-                if not task:
-                    return {"error": f"Task {task_id} not found"}
-                
-                analysis = {
-                    "task_id": task_id,
-                    "progress": task.completion_percentage,
-                    "status": task.status,
-                    "steps_completed": len([s for s in task.steps if s.status == "completed"]),
-                    "total_steps": len(task.steps)
-                }
+            # Determine the type of planning needed
+            if "analysis" in objective.lower():
+                plan = self._create_analysis_plan(objective, available_info or {})
+            elif "search" in objective.lower() or "research" in objective.lower():
+                plan = self._create_research_plan(objective, available_info or {})
+            elif "file" in objective.lower() or "code" in objective.lower():
+                plan = self._create_file_operation_plan(objective, available_info or {})
             else:
-                # Analyze all tasks
-                active_tasks = task_tracker.get_active_tasks()
-                completed_tasks = task_tracker.get_completed_tasks()
-                
-                analysis = {
-                    "active_tasks": len(active_tasks),
-                    "completed_tasks": len(completed_tasks),
-                    "total_tasks": len(task_tracker.task_executions),
-                    "overall_progress": sum(t.completion_percentage for t in task_tracker.task_executions.values()) / max(len(task_tracker.task_executions), 1)
-                }
-            
-            # Reflect on the progress
-            await metacognition_engine.reflect_on_progress()
+                plan = self._create_general_plan(objective, available_info or {})
             
             return {
                 "success": True,
-                "analysis": analysis
+                "objective": objective,
+                "plan": plan,
+                "plan_type": plan["type"],
+                "estimated_duration": plan["estimated_minutes"]
             }
             
         except Exception as e:
-            return {"error": f"Progress analysis failed: {str(e)}"}
+            return {
+                "success": False,
+                "error": f"Plan creation failed: {str(e)}",
+                "objective": objective
+            }
     
-    async def assess_completion(self, task_id: str) -> Dict[str, Any]:
-        """Assess whether a task is complete and provide final insights
+    async def resolve_stuck_task(self, task_id: str, failure_context: Dict[str, Any]) -> Dict[str, Any]:
+        """Resolve a stuck task by creating alternative approaches
         
         Args:
-            task_id: ID of the task to assess
+            task_id: ID of the stuck task
+            failure_context: Information about why the task is stuck
             
         Returns:
-            Dict containing completion assessment
+            Dict containing alternative approach and resolution steps
         """
         try:
-            task = task_tracker.get_task(task_id)
-            if not task:
-                return {"error": f"Task {task_id} not found"}
+            print(f"🔄 Resolving stuck task: {task_id}")
             
-            # Check completion status
-            completed_steps = len([s for s in task.steps if s.status == "completed"])
-            total_steps = len(task.steps)
-            is_complete = completed_steps == total_steps and total_steps > 0
+            # Track attempts to detect patterns
+            if task_id not in self.task_attempts:
+                self.task_attempts[task_id] = []
             
-            if is_complete:
-                task_tracker.complete_task(task_id)
-                
-            # Generate completion assessment reflection
-            await metacognition_engine.assess_completion(task_id)
+            self.task_attempts[task_id].append({
+                "timestamp": datetime.now().isoformat(),
+                "failure_context": failure_context
+            })
             
-            return {
+            # Analyze failure pattern
+            failure_analysis = self._analyze_failure_pattern(task_id, failure_context)
+            
+            # Create alternative approach
+            alternative = self._create_alternative_approach(task_id, failure_analysis)
+            
+            # Create new subtask with alternative approach
+            alt_task_id = f"{task_id}-alt-{len(self.task_attempts[task_id])}"
+            alt_subtask = self._create_alternative_subtask(alt_task_id, alternative)
+            
+            # Save alternative subtask
+            self._save_subtask_to_workspace(alt_subtask)
+            
+            resolution_result = {
                 "success": True,
-                "task_id": task_id,
-                "is_complete": is_complete,
-                "completion_percentage": (completed_steps / max(total_steps, 1)) * 100,
-                "status": task.status
+                "original_task_id": task_id,
+                "alternative_task_id": alt_task_id,
+                "failure_analysis": failure_analysis,
+                "alternative_approach": alternative,
+                "attempt_number": len(self.task_attempts[task_id])
             }
             
+            print(f"✅ Alternative approach created: {alternative['strategy']}")
+            return resolution_result
+            
         except Exception as e:
-            return {"error": f"Completion assessment failed: {str(e)}"}
+            return {
+                "success": False,
+                "error": f"Stuck task resolution failed: {str(e)}",
+                "task_id": task_id
+            }
+    
+    def _analyze_planning_requirements(self, task_description: str, context: Dict[str, Any]) -> Dict[str, Any]:
+        """Analyze what type of detailed planning is needed"""
+        task_lower = task_description.lower()
+        
+        if "codebase" in task_lower and "analysis" in task_lower:
+            return {
+                "strategy": "codebase_analysis",
+                "requires": ["file_discovery", "tool_selection", "pattern_definition"],
+                "estimated_minutes": 8,
+                "complexity": "high"
+            }
+        elif "plan" in task_lower and "strategy" in task_lower:
+            return {
+                "strategy": "strategic_planning", 
+                "requires": ["objective_analysis", "approach_selection", "step_sequencing"],
+                "estimated_minutes": 5,
+                "complexity": "medium"
+            }
+        elif "research" in task_lower:
+            return {
+                "strategy": "research_planning",
+                "requires": ["keyword_identification", "source_selection", "search_strategy"],
+                "estimated_minutes": 4,
+                "complexity": "medium"
+            }
+        else:
+            return {
+                "strategy": "general_planning",
+                "requires": ["requirement_analysis", "approach_definition"],
+                "estimated_minutes": 6,
+                "complexity": "medium"
+            }
+    
+    def _create_detailed_execution_plan(self, task_description: str, analysis: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Create detailed execution steps based on planning analysis"""
+        steps = []
+        
+        if analysis["strategy"] == "codebase_analysis":
+            steps = [
+                {
+                    "description": "Identify file types and structure in codebase",
+                    "agent_type": "terminal",
+                    "specific_commands": ["find . -type f -name '*.py' | head -20", "find . -type f -name '*.js' | head -20"],
+                    "expected_output": "List of Python and JavaScript files",
+                    "estimated_minutes": 2
+                },
+                {
+                    "description": "Select appropriate linting tools based on file types found",
+                    "agent_type": "planning",
+                    "needs_planning": True,
+                    "decision_criteria": "File types from previous step",
+                    "estimated_minutes": 2
+                },
+                {
+                    "description": "Define specific syntax error patterns to search for",
+                    "agent_type": "planning", 
+                    "needs_planning": True,
+                    "focus": "Common syntax errors, undefined variables, import issues",
+                    "estimated_minutes": 2
+                },
+                {
+                    "description": "Execute systematic syntax analysis using selected tools",
+                    "agent_type": "terminal",
+                    "depends_on_planning": True,
+                    "estimated_minutes": 4
+                }
+            ]
+        elif analysis["strategy"] == "research_planning":
+            steps = [
+                {
+                    "description": "Identify key search terms and keywords",
+                    "agent_type": "planning",
+                    "needs_planning": True,
+                    "focus": "Extract main concepts and technical terms",
+                    "estimated_minutes": 2
+                },
+                {
+                    "description": "Select optimal information sources",
+                    "agent_type": "planning",
+                    "needs_planning": True, 
+                    "options": "Stack Overflow, GitHub, documentation sites",
+                    "estimated_minutes": 1
+                },
+                {
+                    "description": "Execute targeted research with defined strategy",
+                    "agent_type": "search",
+                    "depends_on_planning": True,
+                    "estimated_minutes": 5
+                }
+            ]
+        else:
+            # General planning steps
+            steps = [
+                {
+                    "description": "Analyze specific requirements and constraints",
+                    "agent_type": "planning",
+                    "needs_planning": True,
+                    "estimated_minutes": 3
+                },
+                {
+                    "description": "Execute planned approach",
+                    "agent_type": "terminal",
+                    "depends_on_planning": True,
+                    "estimated_minutes": 5
+                }
+            ]
+        
+        return steps
+    
+    def _create_analysis_plan(self, objective: str, available_info: Dict[str, Any]) -> Dict[str, Any]:
+        """Create detailed analysis plan"""
+        return {
+            "type": "analysis",
+            "objective": objective,
+            "approach": "systematic_analysis",
+            "steps": [
+                "Identify analysis scope and boundaries",
+                "Select appropriate analysis tools",
+                "Define success criteria",
+                "Execute analysis systematically",
+                "Validate and document results"
+            ],
+            "tools_suggested": ["find", "grep", "awk", "statistical tools"],
+            "estimated_minutes": 10
+        }
+    
+    def _create_research_plan(self, objective: str, available_info: Dict[str, Any]) -> Dict[str, Any]:
+        """Create detailed research plan"""
+        return {
+            "type": "research",
+            "objective": objective,
+            "approach": "targeted_search",
+            "steps": [
+                "Extract key terms and concepts",
+                "Identify authoritative sources",
+                "Develop search queries",
+                "Execute searches systematically",
+                "Synthesize and validate findings"
+            ],
+            "sources_suggested": ["Stack Overflow", "GitHub", "official documentation"],
+            "estimated_minutes": 8
+        }
+    
+    def _create_file_operation_plan(self, objective: str, available_info: Dict[str, Any]) -> Dict[str, Any]:
+        """Create detailed file operation plan"""
+        return {
+            "type": "file_operations",
+            "objective": objective,
+            "approach": "safe_file_handling",
+            "steps": [
+                "Identify target files and directories",
+                "Create backup strategy",
+                "Plan modification approach",
+                "Execute changes incrementally",
+                "Verify changes and commit"
+            ],
+            "safety_measures": ["backup_creation", "incremental_changes", "validation"],
+            "estimated_minutes": 12
+        }
+    
+    def _create_general_plan(self, objective: str, available_info: Dict[str, Any]) -> Dict[str, Any]:
+        """Create general execution plan"""
+        return {
+            "type": "general",
+            "objective": objective,
+            "approach": "structured_execution",
+            "steps": [
+                "Define clear requirements",
+                "Break down into manageable parts",
+                "Plan execution sequence",
+                "Execute with monitoring",
+                "Validate results"
+            ],
+            "estimated_minutes": 8
+        }
+    
+    def _analyze_failure_pattern(self, task_id: str, failure_context: Dict[str, Any]) -> Dict[str, Any]:
+        """Analyze why a task is failing repeatedly"""
+        attempts = self.task_attempts.get(task_id, [])
+        
+        if len(attempts) >= 3:
+            pattern = "chronic_failure"
+            recommendation = "fundamental_approach_change"
+        elif "timeout" in str(failure_context).lower():
+            pattern = "timeout_issues"
+            recommendation = "simplify_or_parallelize"
+        elif "not_found" in str(failure_context).lower():
+            pattern = "resource_unavailable"
+            recommendation = "alternative_sources"
+        else:
+            pattern = "execution_error"
+            recommendation = "different_tool_or_method"
+        
+        return {
+            "pattern": pattern,
+            "attempts": len(attempts),
+            "recommendation": recommendation,
+            "severity": "high" if len(attempts) >= 3 else "medium"
+        }
+    
+    def _create_alternative_approach(self, task_id: str, failure_analysis: Dict[str, Any]) -> Dict[str, Any]:
+        """Create alternative approach based on failure analysis"""
+        if failure_analysis["recommendation"] == "fundamental_approach_change":
+            return {
+                "strategy": "completely_different_method",
+                "description": "Use entirely different tool or approach",
+                "changes": ["different_tool", "different_methodology", "simplified_scope"]
+            }
+        elif failure_analysis["recommendation"] == "simplify_or_parallelize":
+            return {
+                "strategy": "simplification",
+                "description": "Break into smaller parts or use simpler approach",
+                "changes": ["smaller_chunks", "simpler_commands", "sequential_instead_of_parallel"]
+            }
+        elif failure_analysis["recommendation"] == "alternative_sources":
+            return {
+                "strategy": "different_sources",
+                "description": "Use different data sources or locations",
+                "changes": ["alternative_locations", "different_search_terms", "backup_sources"]
+            }
+        else:
+            return {
+                "strategy": "tool_substitution",
+                "description": "Use different tools with same objective",
+                "changes": ["alternative_tools", "different_parameters", "modified_approach"]
+            }
+    
+    def _create_execution_subtask(self, subtask_id: str, step: Dict[str, Any], is_first_step: bool) -> Dict[str, Any]:
+        """Create an execution subtask from a detailed step"""
+        return {
+            "task_id": subtask_id,
+            "title": step["description"],
+            "description": step["description"],
+            "created_by": self.name,
+            "agent_type": step["agent_type"],
+            "needs_planning": step.get("needs_planning", False),
+            "status": "available" if is_first_step else "blocked",
+            "progress": 0.0,
+            "created_at": datetime.now().isoformat(),
+            "updated_at": datetime.now().isoformat(),
+            "estimated_minutes": step.get("estimated_minutes", 3),
+            "dependencies": [] if is_first_step else ["previous_step"],
+            "specific_commands": step.get("specific_commands", []),
+            "expected_output": step.get("expected_output", ""),
+            "metadata": {
+                "created_by_planning": True,
+                "step_type": step["agent_type"],
+                "planning_agent": self.name,
+                "detailed_expansion": True
+            }
+        }
+    
+    def _create_alternative_subtask(self, alt_task_id: str, alternative: Dict[str, Any]) -> Dict[str, Any]:
+        """Create alternative subtask for stuck task resolution"""
+        return {
+            "task_id": alt_task_id,
+            "title": f"Alternative approach: {alternative['description']}",
+            "description": alternative["description"],
+            "created_by": self.name,
+            "agent_type": "general",  # Will be refined by TaskBreakdownAgent if needed
+            "status": "available",
+            "progress": 0.0,
+            "created_at": datetime.now().isoformat(),
+            "updated_at": datetime.now().isoformat(),
+            "alternative_strategy": alternative["strategy"],
+            "changes_from_original": alternative["changes"],
+            "metadata": {
+                "alternative_approach": True,
+                "created_by_planning": True,
+                "resolution_agent": self.name
+            }
+        }
+    
+    def _save_subtask_to_workspace(self, subtask: Dict[str, Any]):
+        """Save subtask to workspace for other agents to find"""
+        try:
+            task_dir = self.current_tasks_dir / subtask["task_id"]
+            task_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Save task metadata
+            task_file = task_dir / "task.json"
+            with open(task_file, 'w') as f:
+                json.dump(subtask, f, indent=2)
+            
+            # Create progress log
+            progress_file = task_dir / "progress.log"
+            with open(progress_file, 'w') as f:
+                f.write(f"=== Planning Subtask Created: {datetime.now().isoformat()} ===\n")
+                f.write(f"Task: {subtask['title']}\n")
+                f.write(f"Type: {subtask['agent_type']}\n")
+                f.write(f"Status: {subtask['status']}\n")
+                f.write(f"Created by: {self.name} (Planning)\n")
+                if subtask.get("specific_commands"):
+                    f.write(f"Specific commands: {subtask['specific_commands']}\n")
+                f.write(f"\n")
+                
+            print(f"📋 Created planning subtask: {subtask['task_id']}")
+            
+        except Exception as e:
+            print(f"❌ Failed to save planning subtask {subtask['task_id']}: {e}")
+    
+    def _mark_planning_task_completed(self, task_id: str, detailed_steps: List[Dict[str, Any]]):
+        """Mark the original planning task as completed"""
+        try:
+            task_dir = self.current_tasks_dir / task_id
+            task_file = task_dir / "task.json"
+            
+            if task_file.exists():
+                with open(task_file, 'r') as f:
+                    task = json.load(f)
+                
+                task["status"] = "completed"
+                task["completed_by"] = self.name
+                task["completed_at"] = datetime.now().isoformat()
+                task["planning_result"] = {
+                    "detailed_steps_created": len(detailed_steps),
+                    "expansion_completed": True
+                }
+                
+                with open(task_file, 'w') as f:
+                    json.dump(task, f, indent=2)
+                    
+        except Exception as e:
+            print(f"❌ Failed to mark planning task completed {task_id}: {e}")
+    
+    async def monitor_workspace(self):
+        """Monitor workspace for tasks that need planning expansion"""
+        print(f"🧠 {self.name} monitoring workspace for planning tasks...")
+        
+        while True:
+            try:
+                planning_tasks = self._find_planning_tasks()
+                stuck_tasks = self._find_stuck_tasks()
+                
+                # Handle planning tasks first
+                for task in planning_tasks:
+                    print(f"📋 Found planning task: {task['task_id']}")
+                    self._claim_task(task)
+                    
+                    # Expand the planning task
+                    result = await self.expand_planning_task(
+                        task['description'],
+                        task['task_id'],
+                        task.get('context', {})
+                    )
+                    
+                    if result.get("success"):
+                        print(f"✅ Completed planning expansion for {task['task_id']}")
+                    else:
+                        print(f"❌ Failed to expand planning for {task['task_id']}")
+                
+                # Handle stuck tasks
+                for task in stuck_tasks:
+                    print(f"🔄 Found stuck task: {task['task_id']}")
+                    result = await self.resolve_stuck_task(
+                        task['task_id'],
+                        task.get('failure_context', {})
+                    )
+                    
+                    if result.get("success"):
+                        print(f"✅ Created alternative approach for {task['task_id']}")
+                
+                await asyncio.sleep(3)  # Check every 3 seconds
+                
+            except Exception as e:
+                print(f"❌ Error in workspace monitoring: {e}")
+                await asyncio.sleep(5)
+    
+    def _find_planning_tasks(self) -> List[Dict[str, Any]]:
+        """Find tasks that need planning expansion"""
+        planning_tasks = []
+        
+        try:
+            if not self.current_tasks_dir.exists():
+                return planning_tasks
+                
+            for task_dir in self.current_tasks_dir.iterdir():
+                if not task_dir.is_dir():
+                    continue
+                    
+                task_file = task_dir / "task.json"
+                if not task_file.exists():
+                    continue
+                
+                with open(task_file, 'r') as f:
+                    task = json.load(f)
+                
+                # Look for tasks that need planning
+                if (task.get("needs_planning", False) and
+                    task.get("status") in ["available", "not_started"] and
+                    not self._is_task_claimed(task)):
+                    
+                    planning_tasks.append(task)
+                    
+        except Exception as e:
+            print(f"❌ Error finding planning tasks: {e}")
+        
+        return planning_tasks
+    
+    def _find_stuck_tasks(self) -> List[Dict[str, Any]]:
+        """Find tasks that appear to be stuck (failed multiple times)"""
+        stuck_tasks = []
+        
+        try:
+            if not self.current_tasks_dir.exists():
+                return stuck_tasks
+                
+            for task_dir in self.current_tasks_dir.iterdir():
+                if not task_dir.is_dir():
+                    continue
+                    
+                task_file = task_dir / "task.json"
+                if not task_file.exists():
+                    continue
+                
+                with open(task_file, 'r') as f:
+                    task = json.load(f)
+                
+                # Look for tasks that have failed multiple times or are marked as stuck
+                if (task.get("status") == "failed" and
+                    task.get("retry_count", 0) >= 2) or task.get("status") == "stuck":
+                    
+                    stuck_tasks.append(task)
+                    
+        except Exception as e:
+            print(f"❌ Error finding stuck tasks: {e}")
+        
+        return stuck_tasks
+    
+    def _is_task_claimed(self, task: Dict[str, Any]) -> bool:
+        """Check if task is already claimed by an agent"""
+        return task.get("status") in ["claimed", "in_progress", "completed"]
+    
+    def _claim_task(self, task: Dict[str, Any]):
+        """Claim a task by updating its status"""
+        try:
+            task["status"] = "claimed"
+            task["claimed_by"] = self.name
+            task["claimed_at"] = datetime.now().isoformat()
+            
+            task_dir = self.current_tasks_dir / task["task_id"]
+            task_file = task_dir / "task.json"
+            
+            with open(task_file, 'w') as f:
+                json.dump(task, f, indent=2)
+                
+        except Exception as e:
+            print(f"❌ Failed to claim task {task['task_id']}: {e}")
 
-# Create the autonomous agent instance
-autonomous_metacognition_agent = AutonomousMetacognitionAgent()
+# Create the agent instance
+metacognition_agent = MetacognitionAgent()
 
 if __name__ == "__main__":
-    import asyncio
-    
     async def main():
-        """Main entry point for the autonomous metacognition agent"""
-        print("Starting Autonomous Metacognition Agent...")
+        """Main entry point for the metacognition agent"""
+        print("🧠 Starting Metacognition Agent - Task Expansion Specialist...")
+        print("Specialization: Planning task expansion and stuck task resolution")
+        print("Framework: Google ADK")
+        print("Workspace monitoring: ENABLED")
         
-        # Start the reflection loop
-        await metacognition_engine.start_reflection_loop()
-        
-        print("Autonomous Metacognition Agent is ready!")
-        print("This agent can:")
-        print("- Reflect on tasks and provide insights")
-        print("- Discover other agents via A2A protocol")
-        print("- Invoke other agents when needed")
-        print("- Track its work in git workspace")
-        print("- Analyze progress and completion")
-        
-        # Keep the agent running
-        try:
-            while True:
-                await asyncio.sleep(1)
-        except KeyboardInterrupt:
-            print("Shutting down...")
+        # Start monitoring workspace
+        await metacognition_agent.monitor_workspace()
     
     asyncio.run(main()) 
