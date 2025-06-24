@@ -5,7 +5,7 @@ google-adk==1.4.2
 python-dotenv>=1.0.0
 
 # Async operations
-asyncio
+# asyncio is built-in Python module
 
 # Data handling (for workspace results)
-pathlib 
+# pathlib is built-in Python module 

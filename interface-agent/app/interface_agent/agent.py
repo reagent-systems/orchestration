@@ -1,41 +1,37 @@
 """
-Orchestration Interface Agent - Live Task Controller
-Textual-based TUI for real-time task management and orchestration monitoring
+Textual Interface Agent
+Live orchestration control center with git-style tree interface for task management
 """
 
 import os
 import json
 import time
 import asyncio
-from pathlib import Path
-from typing import Dict, Any, List, Optional, Set
-from dotenv import load_dotenv
 from datetime import datetime
-from watchdog.observers import Observer
-from watchdog.events import FileSystemEventHandler
+from pathlib import Path
+from typing import Dict, Any, Optional, List
 
+# Textual imports
 from textual.app import App, ComposeResult
 from textual.containers import Container, Horizontal, Vertical, ScrollableContainer
 from textual.widgets import (
-    Header, Footer, Tree, Static, Button, Input, TextArea, 
-    DataTable, Log, Label, ProgressBar, Tabs, TabPane
+    Header, Footer, Tree, DataTable, Static, Log, Button, 
+    Input, TextArea, Label
 )
 from textual.screen import ModalScreen
 from textual.binding import Binding
 from textual.reactive import reactive
-from textual import events
-from rich.text import Text
-from rich.console import Console
-from rich.syntax import Syntax
 
+# File watching
+from watchdog.observers import Observer
+from watchdog.events import FileSystemEventHandler
+
+# ADK Framework
 from google.adk.agents import Agent
 from google.adk.tools import FunctionTool
 
-# Load environment variables from root .env
-load_dotenv(dotenv_path="../../.env")
-
 class TaskEditModal(ModalScreen[Dict[str, Any]]):
-    """Modal screen for editing task properties"""
+    """Modal screen for editing existing tasks"""
     
     def __init__(self, task_data: Dict[str, Any]):
         super().__init__()
@@ -43,34 +39,32 @@ class TaskEditModal(ModalScreen[Dict[str, Any]]):
     
     def compose(self) -> ComposeResult:
         with Container(classes="modal"):
-            yield Label(f"📝 Edit Task: {self.task_data.get('task_id', 'Unknown')}", classes="modal-title")
+            yield Label("✏️ Edit Task", classes="modal-title")
             
             with Vertical(classes="modal-content"):
-                yield Label("Description:")
+                yield Label("Task Description:")
                 yield TextArea(
-                    self.task_data.get('description', ''),
+                    text=self.task_data.get('description', ''),
                     id="description-input",
                     classes="edit-field"
                 )
                 
                 yield Label("Agent Type:")
                 yield Input(
-                    value=self.task_data.get('agent_type', ''),
-                    placeholder="search, file, terminal, metacognition, etc.",
+                    value=self.task_data.get('agent_type', 'auto'),
                     id="agent-type-input",
                     classes="edit-field"
                 )
                 
                 yield Label("Priority (1-5):")
                 yield Input(
-                    value=str(self.task_data.get('priority', 1)),
-                    placeholder="1",
+                    value=str(self.task_data.get('priority', 3)),
                     id="priority-input",
                     classes="edit-field"
                 )
             
             with Horizontal(classes="modal-buttons"):
-                yield Button("💾 Save", variant="primary", id="save-btn")
+                yield Button("💾 Save Changes", variant="primary", id="save-btn")
                 yield Button("❌ Cancel", variant="error", id="cancel-btn")
     
     def on_button_pressed(self, event: Button.Pressed) -> None:
@@ -270,7 +264,6 @@ You provide a sophisticated TUI interface for users to control the orchestration
             ]
         )
     
-    @FunctionTool
     def create_task(self, description: str, agent_type: str = "auto", priority: int = 3) -> Dict[str, Any]:
         """Create a new task in the workspace"""
         try:
@@ -301,11 +294,10 @@ You provide a sophisticated TUI interface for users to control the orchestration
                 f.write(f"Priority: {priority}\n\n")
             
             return {"success": True, "task_id": task_id, "path": str(task_path)}
-            
+                
         except Exception as e:
             return {"success": False, "error": str(e)}
     
-    @FunctionTool
     def edit_task_file(self, task_id: str, updates: Dict[str, Any]) -> Dict[str, Any]:
         """Edit an existing task and signal any working agents"""
         try:
@@ -347,11 +339,10 @@ You provide a sophisticated TUI interface for users to control the orchestration
                     f.write(f"  → Interrupted agent: {working_agent}\n")
             
             return {"success": True, "interrupted_agent": working_agent}
-            
+                
         except Exception as e:
             return {"success": False, "error": str(e)}
     
-    @FunctionTool
     def delete_task_file(self, task_id: str) -> Dict[str, Any]:
         """Delete a task and signal any working agents"""
         try:
@@ -376,7 +367,6 @@ You provide a sophisticated TUI interface for users to control the orchestration
         except Exception as e:
             return {"success": False, "error": str(e)}
     
-    @FunctionTool
     def signal_agent_interrupt(self, task_id: str, agent_id: str) -> Dict[str, Any]:
         """Signal an agent to stop working on a task"""
         try:
@@ -394,7 +384,7 @@ You provide a sophisticated TUI interface for users to control the orchestration
                 }, f, indent=2)
             
             return {"success": True, "signal_file": str(interrupt_path)}
-            
+                
         except Exception as e:
             return {"success": False, "error": str(e)}
     
@@ -463,7 +453,7 @@ You provide a sophisticated TUI interface for users to control the orchestration
         
         if not self.tasks_path.exists():
             return
-        
+            
         for task_dir in self.tasks_path.iterdir():
             if task_dir.is_dir():
                 task_file = task_dir / "task.json"
@@ -583,87 +573,86 @@ You provide a sophisticated TUI interface for users to control the orchestration
         details.append(f"📝 Description: {task_data.get('description', 'No description')}")
         details.append(f"🤖 Agent Type: {task_data.get('agent_type', 'auto')}")
         details.append(f"📊 Status: {task_data.get('status', 'unknown').upper()}")
-        details.append(f"⭐ Priority: {task_data.get('priority', 1)}")
+        details.append(f"⚡ Priority: {task_data.get('priority', 'Unknown')}")
         
-        if task_data.get("claimed_by"):
-            details.append(f"👤 Claimed By: {task_data['claimed_by']}")
-            
         if task_data.get("created_at"):
             created_time = datetime.fromtimestamp(task_data["created_at"]).strftime("%Y-%m-%d %H:%M:%S")
-            details.append(f"🕐 Created: {created_time}")
+            details.append(f"📅 Created: {created_time}")
+        
+        if task_data.get("claimed_by"):
+            details.append(f"👤 Claimed by: {task_data['claimed_by']}")
             
         if task_data.get("dependencies"):
             details.append(f"🔗 Dependencies: {', '.join(task_data['dependencies'])}")
         
         details_widget.update("\n".join(details))
     
+    # Action handlers
     async def action_new_task(self) -> None:
-        """Create a new task"""
-        result = await self.push_screen_wait(NewTaskModal())
+        """Show modal to create new task"""
+        result = await self.push_screen(NewTaskModal())
         if result:
-            create_result = self.create_task(
-                description=result["description"],
-                agent_type=result["agent_type"],
-                priority=result["priority"]
-            )
-            
             log = self.query_one("#live-log", Log)
-            if create_result["success"]:
+            create_result = self.create_task(
+                result['description'],
+                result['agent_type'],
+                result['priority']
+            )
+            if create_result.get("success"):
                 log.write_line(f"✅ Created task: {create_result['task_id']}")
                 self.refresh_data()
             else:
                 log.write_line(f"❌ Failed to create task: {create_result['error']}")
     
     async def action_edit_task(self) -> None:
-        """Edit the selected task"""
-        if not self.selected_task_id or self.selected_task_id not in self.tasks_data:
-            log = self.query_one("#live-log", Log)
-            log.write_line("⚠️ No task selected for editing")
+        """Show modal to edit selected task"""
+        if not self.selected_task_id:
             return
-        
+            
+        if self.selected_task_id not in self.tasks_data:
+            return
+            
         task_data = self.tasks_data[self.selected_task_id]
-        result = await self.push_screen_wait(TaskEditModal(task_data))
+        result = await self.push_screen(TaskEditModal(task_data))
         
         if result:
-            # Extract only the fields that can be updated
-            updates = {
-                "description": result["description"],
-                "agent_type": result["agent_type"],
-                "priority": result["priority"]
-            }
-            
-            edit_result = self.edit_task_file(self.selected_task_id, updates)
-            
             log = self.query_one("#live-log", Log)
-            if edit_result["success"]:
-                log.write_line(f"✅ Updated task: {self.selected_task_id}")
-                if edit_result.get("interrupted_agent"):
-                    log.write_line(f"🔄 Interrupted agent: {edit_result['interrupted_agent']}")
-                self.refresh_data()
-            else:
-                log.write_line(f"❌ Failed to update task: {edit_result['error']}")
+            
+            # Prepare updates (exclude unchanged fields)
+            updates = {}
+            for key, value in result.items():
+                if key not in ["task_id", "created_at", "created_by"] and task_data.get(key) != value:
+                    updates[key] = value
+            
+            if updates:
+                edit_result = self.edit_task_file(self.selected_task_id, updates)
+                if edit_result.get("success"):
+                    log.write_line(f"✅ Updated task: {self.selected_task_id}")
+                    if edit_result.get("interrupted_agent"):
+                        log.write_line(f"⚠️ Interrupted agent: {edit_result['interrupted_agent']}")
+                    self.refresh_data()
+                else:
+                    log.write_line(f"❌ Failed to update task: {edit_result['error']}")
     
     async def action_delete_task(self) -> None:
-        """Delete the selected task"""
+        """Delete selected task"""
         if not self.selected_task_id:
-            log = self.query_one("#live-log", Log)
-            log.write_line("⚠️ No task selected for deletion")
             return
-        
+            
+        log = self.query_one("#live-log", Log)
         delete_result = self.delete_task_file(self.selected_task_id)
         
-        log = self.query_one("#live-log", Log)
-        if delete_result["success"]:
+        if delete_result.get("success"):
             log.write_line(f"🗑️ Deleted task: {self.selected_task_id}")
             if delete_result.get("interrupted_agent"):
-                log.write_line(f"🔄 Interrupted agent: {delete_result['interrupted_agent']}")
+                log.write_line(f"⚠️ Interrupted agent: {delete_result['interrupted_agent']}")
             self.selected_task_id = ""
             self.refresh_data()
         else:
             log.write_line(f"❌ Failed to delete task: {delete_result['error']}")
     
     def action_refresh(self) -> None:
-        """Manually refresh data"""
+        """Force refresh all data"""
         log = self.query_one("#live-log", Log)
         log.write_line("🔄 Refreshing data...")
         self.refresh_data()
@@ -673,17 +662,14 @@ You provide a sophisticated TUI interface for users to control the orchestration
         if hasattr(event.node, 'data') and event.node.data:
             self.selected_task_id = event.node.data
             self.update_task_details()
-            
-            log = self.query_one("#live-log", Log)
-            log.write_line(f"📋 Selected task: {self.selected_task_id}")
     
     def on_unmount(self) -> None:
-        """Cleanup when app closes"""
+        """Cleanup when interface closes"""
         if self.observer.is_alive():
             self.observer.stop()
             self.observer.join()
 
-# Create agent instance
+# Initialize the interface agent
 interface_agent = OrchestrationInterface()
 
 if __name__ == "__main__":

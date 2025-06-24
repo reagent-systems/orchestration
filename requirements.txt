@@ -1,0 +1,72 @@
+# Orchestration System - Root Requirements
+# References all individual agent requirements dynamically
+
+# ============================================================================
+# OPTION 1: Reference individual agent requirements (recommended for development)
+# ============================================================================
+# Uncomment these lines to install from individual agent requirements:
+
+-r interface-agent/requirements.txt
+-r metacognition-agent/requirements.txt  
+-r read-write-app/requirements.txt
+-r search-app/requirements.txt
+-r terminal-agent/requirements.txt
+-r task-breakdown-agent/requirements.txt
+
+# ============================================================================
+# OPTION 2: Consolidated requirements (recommended for production)
+# ============================================================================
+# All dependencies consolidated and deduplicated:
+
+# Core ADK Framework (consistent across all agents)
+# google-adk==1.4.2
+
+# Environment and configuration
+# python-dotenv>=1.0.0
+
+# Interface Agent specific
+# textual>=0.47.0
+# rich>=13.0.0
+# click>=8.0.0
+# prompt-toolkit>=3.0.0
+# colorama>=0.4.6
+# watchdog>=3.0.0
+
+# Metacognition Agent specific  
+# a2a-sdk>=0.2.0
+# GitPython>=3.1.0
+# aiohttp>=3.8.0
+# pathlib2>=2.3.0
+# PyYAML>=6.0
+# structlog>=21.0.0
+# pandas>=1.5.0
+# prometheus-client>=0.12.0
+
+# File Operations Agent specific
+# aiofiles>=23.1.0
+
+# Web framework (used by interface agent)
+# flask>=2.3.0
+# pydantic>=2.0.0
+# requests>=2.31.0
+
+# ============================================================================
+# INSTALLATION INSTRUCTIONS
+# ============================================================================
+# 
+# For development (maintains individual agent isolation):
+#   pip install -r requirements.txt  # (uncomment Option 1 above)
+#
+# For production (single consolidated install):
+#   pip install -r requirements.txt  # (use Option 2 above - default)
+#
+# To install individual agent requirements separately:
+#   pip install -r interface-agent/requirements.txt
+#   pip install -r metacognition-agent/requirements.txt
+#   # etc...
+#
+# ============================================================================
+
+# NOTE: The following modules are built into Python and don't need installation:
+# asyncio, pathlib, os, sys, json, datetime, uuid, typing, shutil
+# (Some individual agent requirements.txt files incorrectly list these) 

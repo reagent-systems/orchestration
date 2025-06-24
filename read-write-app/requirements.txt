@@ -8,15 +8,13 @@ a2a-sdk>=0.2.0
 gitpython>=3.1.0
 
 # File operations and utilities
-pathlib
-os
-shutil
+# pathlib, os, shutil are built-in Python modules
 
 # Environment and configuration
 python-dotenv>=1.0.0
 
 # Async operations
-asyncio
+# asyncio is built-in Python module
 aiofiles>=23.1.0
 
 # Optional: For enhanced functionality

@@ -32,13 +32,13 @@ pip install -r terminal-agent/requirements.txt
 ```
 
 ### 3. **Configure Environment**
-```bash
+   ```bash
 # Copy environment template
-cp .env.example .env
+   cp .env.example .env
 
 # Edit .env file with your preferences (optional - defaults work fine)
 # The system works out-of-the-box with default settings
-```
+   ```
 
 ### 4. **Launch the Control Center** 🎛️
 ```bash

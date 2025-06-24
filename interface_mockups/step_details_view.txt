@@ -1,0 +1,33 @@
+┌─ Agent Tree ────────────────┬─ Step Details ─────────────────────────────┐
+│                             │                                             │
+│ 🎯 Analyze codebase         │ 🔎 Run eslint on JavaScript files          │
+│ ├─ 📋 Plan analysis ●       │                                             │
+│ ├─ 💻 Execute analysis ◐    │ ID: breakdown-20250119-step-02-detail-02   │
+│ │  ├─ 🔎 Run pylint ●       │ Status: RUNNING (started 14:21:33)         │
+│ │  ├─ 🔎 Run eslint ◑    ← │ Agent: terminal                             │
+│ │  └─ 📊 Compile report ○   │ Progress: 67% (2/3 commands completed)     │
+│ ├─ 🌐 Research solutions ○  │                                             │
+│ └─ 📝 Apply solutions ○     │ Commands:                                   │
+│                             │ ✓ find . -name "*.js" -not -path "./node*" │
+│                             │ ⏳ npx eslint --format=json *.js > out.json │
+│                             │ ○ cat out.json | jq '.[] | select(.error*'  │
+│                             │                                             │
+│                             │ Output so far:                              │
+│                             │ ./src/utils.js                             │
+│                             │ ./src/components/App.js                     │
+│                             │ ./tests/unit.js                            │
+│                             │ Running eslint analysis...                  │
+│                             │                                             │
+│                             │ Dependencies:                               │
+│                             │ ✓ Select appropriate linting tools          │
+│                             │ ✓ Define specific error patterns            │
+│                             │                                             │
+│                             │ Next Steps:                                 │
+│                             │ → Compile syntax error report               │
+│                             │ → Search Stack Overflow for JS fixes       │
+│                             │                                             │
+│                             │ Est. Completion: 14:24:15 (1m 42s)         │
+│                             │                                             │
+└─────────────────────────────┴─────────────────────────────────────────────┘
+│ [e] Edit │ [i] Interrupt │ [l] View Logs │ [r] Retry │ [enter] Focus     │
+└─────────────────────────────────────────────────────────────────────────┘ 

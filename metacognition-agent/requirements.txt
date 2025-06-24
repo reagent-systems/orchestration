@@ -9,7 +9,7 @@ GitPython>=3.1.0
 
 # Async operations and HTTP
 aiohttp>=3.8.0
-asyncio
+# asyncio is built-in Python module
 python-dotenv>=1.0.0
 
 # Data handling and utilities
@@ -17,7 +17,7 @@ pathlib2>=2.3.0
 PyYAML>=6.0
 structlog>=21.0.0
 pandas>=1.5.0
-datetime
+# datetime is built-in Python module
 
 # Optional: For enhanced functionality
 prometheus-client>=0.12.0 
