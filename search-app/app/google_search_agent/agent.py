@@ -20,8 +20,10 @@ class SearchAgent:
     """Search Agent using built-in ADK google_search tool with workspace task monitoring"""
     
     def __init__(self):
-        self.workspace_path = Path(os.getenv("GIT_WORKSPACE_PATH", "./workspace"))
-        self.tasks_path = self.workspace_path / "current_tasks"
+        # Store workspace paths in global scope for access in methods
+        global workspace_path, current_tasks_dir
+        workspace_path = Path(os.getenv("GIT_WORKSPACE_PATH", "./workspace"))
+        current_tasks_dir = workspace_path / "current_tasks"
         self.agent_id = "search_agent"
         
         # Create the ADK agent with built-in google_search tool
@@ -71,7 +73,7 @@ You monitor the workspace for search-related tasks and execute them autonomously
                 filename = f"search_results_{safe_query.replace(' ', '_')[:30]}.json"
             
             # Ensure results directory exists
-            results_dir = self.workspace_path / "search_results"
+            results_dir = workspace_path / "search_results"
             results_dir.mkdir(exist_ok=True)
             
             # Save results
@@ -196,16 +198,16 @@ You monitor the workspace for search-related tasks and execute them autonomously
 
     async def monitor_workspace(self):
         """Monitor workspace for search tasks"""
-        print(f"🔍 Search Agent monitoring workspace: {self.tasks_path}")
+        print(f"🔍 Search Agent monitoring workspace: {current_tasks_dir}")
         
         while True:
             try:
-                if not self.tasks_path.exists():
+                if not current_tasks_dir.exists():
                     await asyncio.sleep(int(os.getenv("TASK_MONITOR_INTERVAL", 3)))
                     continue
                 
                 # Check for available tasks
-                for task_dir in self.tasks_path.iterdir():
+                for task_dir in current_tasks_dir.iterdir():
                     if not task_dir.is_dir():
                         continue
                     

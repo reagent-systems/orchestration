@@ -21,8 +21,10 @@ class FileOperationsAgent:
     """Real File Operations Agent with workspace task monitoring"""
     
     def __init__(self):
-        self.workspace_path = Path(os.getenv("GIT_WORKSPACE_PATH", "./workspace"))
-        self.tasks_path = self.workspace_path / "current_tasks"
+        # Store workspace paths in global scope for access in methods
+        global workspace_path, current_tasks_dir
+        workspace_path = Path(os.getenv("GIT_WORKSPACE_PATH", "./workspace"))
+        current_tasks_dir = workspace_path / "current_tasks"
         self.agent_id = "file_operations_agent"
         
         # Define tools for the ADK agent
@@ -67,7 +69,7 @@ You monitor the workspace for file-related tasks and execute them autonomously w
         try:
             # Resolve path relative to workspace
             if not file_path.startswith('/'):
-                full_path = self.workspace_path / file_path
+                full_path = workspace_path / file_path
             else:
                 full_path = Path(file_path)
             
@@ -116,7 +118,7 @@ You monitor the workspace for file-related tasks and execute them autonomously w
         try:
             # Resolve path relative to workspace
             if not file_path.startswith('/'):
-                full_path = self.workspace_path / file_path
+                full_path = workspace_path / file_path
             else:
                 full_path = Path(file_path)
             
@@ -155,7 +157,7 @@ You monitor the workspace for file-related tasks and execute them autonomously w
         try:
             # Resolve path relative to workspace
             if not file_path.startswith('/'):
-                full_path = self.workspace_path / file_path
+                full_path = workspace_path / file_path
             else:
                 full_path = Path(file_path)
             
@@ -198,7 +200,7 @@ You monitor the workspace for file-related tasks and execute them autonomously w
         try:
             # Resolve path relative to workspace
             if not file_path.startswith('/'):
-                full_path = self.workspace_path / file_path
+                full_path = workspace_path / file_path
             else:
                 full_path = Path(file_path)
             
@@ -242,9 +244,9 @@ You monitor the workspace for file-related tasks and execute them autonomously w
         try:
             # Resolve path relative to workspace
             if directory_path == "." or directory_path == "":
-                full_path = self.workspace_path
+                full_path = workspace_path
             elif not directory_path.startswith('/'):
-                full_path = self.workspace_path / directory_path
+                full_path = workspace_path / directory_path
             else:
                 full_path = Path(directory_path)
             
@@ -296,7 +298,7 @@ You monitor the workspace for file-related tasks and execute them autonomously w
         try:
             # Resolve path relative to workspace
             if not directory_path.startswith('/'):
-                full_path = self.workspace_path / directory_path
+                full_path = workspace_path / directory_path
             else:
                 full_path = Path(directory_path)
             
@@ -339,14 +341,14 @@ You monitor the workspace for file-related tasks and execute them autonomously w
                 full_paths = []
                 for file_path in files:
                     if not file_path.startswith('/'):
-                        full_paths.append(str(self.workspace_path / file_path))
+                        full_paths.append(str(workspace_path / file_path))
                     else:
                         full_paths.append(file_path)
                 
                 result = file_tools.git_commit_files(full_paths, message)
             else:
                 # Commit all changes in workspace
-                os.chdir(self.workspace_path)
+                os.chdir(workspace_path)
                 result = file_tools.git_status()
                 if result.get("success") and result.get("is_dirty"):
                     result = file_tools.git_commit_files([], message)  # Empty list commits all
@@ -518,16 +520,16 @@ You monitor the workspace for file-related tasks and execute them autonomously w
 
     async def monitor_workspace(self):
         """Monitor workspace for file operation tasks"""
-        print(f"📁 File Operations Agent monitoring workspace: {self.tasks_path}")
+        print(f"📁 File Operations Agent monitoring workspace: {current_tasks_dir}")
         
         while True:
             try:
-                if not self.tasks_path.exists():
+                if not current_tasks_dir.exists():
                     await asyncio.sleep(int(os.getenv("TASK_MONITOR_INTERVAL", 3)))
                     continue
                 
                 # Check for available tasks
-                for task_dir in self.tasks_path.iterdir():
+                for task_dir in current_tasks_dir.iterdir():
                     if not task_dir.is_dir():
                         continue
                     

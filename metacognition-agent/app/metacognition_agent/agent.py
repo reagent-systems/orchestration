@@ -53,8 +53,10 @@ Keep it practical, specific, and executable.""",
             tools=tools
         )
         
-        self.workspace_path = Path(os.getenv("TASK_WORKSPACE_PATH", "./workspace"))
-        self.current_tasks_dir = self.workspace_path / "current_tasks"
+        # Store workspace path in global scope since ADK Agent doesn't allow custom attributes
+        global workspace_path, current_tasks_dir
+        workspace_path = Path(os.getenv("TASK_WORKSPACE_PATH", "./workspace"))
+        current_tasks_dir = workspace_path / "current_tasks"
         
         # Track task attempts to detect loops
         self.task_attempts = {}
@@ -481,7 +483,7 @@ Keep it practical, specific, and executable.""",
     def _save_subtask_to_workspace(self, subtask: Dict[str, Any]):
         """Save subtask to workspace for other agents to find"""
         try:
-            task_dir = self.current_tasks_dir / subtask["task_id"]
+            task_dir = current_tasks_dir / subtask["task_id"]
             task_dir.mkdir(parents=True, exist_ok=True)
             
             # Save task metadata
@@ -509,7 +511,7 @@ Keep it practical, specific, and executable.""",
     def _mark_planning_task_completed(self, task_id: str, detailed_steps: List[Dict[str, Any]]):
         """Mark the original planning task as completed"""
         try:
-            task_dir = self.current_tasks_dir / task_id
+            task_dir = current_tasks_dir / task_id
             task_file = task_dir / "task.json"
             
             if task_file.exists():
@@ -578,10 +580,10 @@ Keep it practical, specific, and executable.""",
         planning_tasks = []
         
         try:
-            if not self.current_tasks_dir.exists():
+            if not current_tasks_dir.exists():
                 return planning_tasks
                 
-            for task_dir in self.current_tasks_dir.iterdir():
+            for task_dir in current_tasks_dir.iterdir():
                 if not task_dir.is_dir():
                     continue
                     
@@ -609,10 +611,10 @@ Keep it practical, specific, and executable.""",
         stuck_tasks = []
         
         try:
-            if not self.current_tasks_dir.exists():
+            if not current_tasks_dir.exists():
                 return stuck_tasks
                 
-            for task_dir in self.current_tasks_dir.iterdir():
+            for task_dir in current_tasks_dir.iterdir():
                 if not task_dir.is_dir():
                     continue
                     
@@ -645,7 +647,7 @@ Keep it practical, specific, and executable.""",
             task["claimed_by"] = self.name
             task["claimed_at"] = datetime.now().isoformat()
             
-            task_dir = self.current_tasks_dir / task["task_id"]
+            task_dir = current_tasks_dir / task["task_id"]
             task_file = task_dir / "task.json"
             
             with open(task_file, 'w') as f:

@@ -55,8 +55,10 @@ Keep it safe, reliable, and well-documented.""",
             tools=tools
         )
         
-        self.workspace_path = Path(os.getenv("TASK_WORKSPACE_PATH", "./workspace"))
-        self.current_tasks_dir = self.workspace_path / "current_tasks"
+        # Store workspace path in global scope since ADK Agent doesn't allow custom attributes
+        global workspace_path, current_tasks_dir
+        workspace_path = Path(os.getenv("TASK_WORKSPACE_PATH", "./workspace"))
+        current_tasks_dir = workspace_path / "current_tasks"
         
         # Safety settings
         self.safe_commands = {
@@ -104,7 +106,7 @@ Keep it safe, reliable, and well-documented.""",
                 }
             
             # Set working directory
-            work_dir = working_dir or str(self.workspace_path)
+            work_dir = working_dir or str(workspace_path)
             
             # Execute command safely
             result = await self._execute_command_safely(command, work_dir, timeout)
@@ -146,7 +148,7 @@ Keep it safe, reliable, and well-documented.""",
                 }
             
             # Create temporary script file
-            work_dir = working_dir or str(self.workspace_path)
+            work_dir = working_dir or str(workspace_path)
             script_path = await self._create_temp_script(script_content, script_type, work_dir)
             
             # Execute script
@@ -191,7 +193,7 @@ Keep it safe, reliable, and well-documented.""",
         try:
             print(f"🔄 Executing command sequence: {len(commands)} commands")
             
-            work_dir = working_dir or str(self.workspace_path)
+            work_dir = working_dir or str(workspace_path)
             results = []
             
             for i, command in enumerate(commands, 1):
@@ -403,10 +405,10 @@ Keep it safe, reliable, and well-documented.""",
         terminal_tasks = []
         
         try:
-            if not self.current_tasks_dir.exists():
+            if not current_tasks_dir.exists():
                 return terminal_tasks
                 
-            for task_dir in self.current_tasks_dir.iterdir():
+            for task_dir in current_tasks_dir.iterdir():
                 if not task_dir.is_dir():
                     continue
                     
@@ -501,7 +503,7 @@ Keep it safe, reliable, and well-documented.""",
     def _save_task_results(self, task: Dict[str, Any], result: Dict[str, Any]):
         """Save task execution results to workspace"""
         try:
-            task_dir = self.current_tasks_dir / task["task_id"]
+            task_dir = current_tasks_dir / task["task_id"]
             results_file = task_dir / "terminal_results.json"
             
             with open(results_file, 'w') as f:
@@ -528,7 +530,7 @@ Keep it safe, reliable, and well-documented.""",
             task["claimed_by"] = self.name
             task["claimed_at"] = datetime.now().isoformat()
             
-            task_dir = self.current_tasks_dir / task["task_id"]
+            task_dir = current_tasks_dir / task["task_id"]
             task_file = task_dir / "task.json"
             
             with open(task_file, 'w') as f:
@@ -549,7 +551,7 @@ Keep it safe, reliable, and well-documented.""",
                 "output_length": len(result.get("stdout", ""))
             }
             
-            task_dir = self.current_tasks_dir / task["task_id"]
+            task_dir = current_tasks_dir / task["task_id"]
             task_file = task_dir / "task.json"
             
             with open(task_file, 'w') as f:
@@ -567,7 +569,7 @@ Keep it safe, reliable, and well-documented.""",
             task["failure_reason"] = result.get("error", "Unknown error")
             task["retry_count"] = task.get("retry_count", 0) + 1
             
-            task_dir = self.current_tasks_dir / task["task_id"]
+            task_dir = current_tasks_dir / task["task_id"]
             task_file = task_dir / "task.json"
             
             with open(task_file, 'w') as f:
