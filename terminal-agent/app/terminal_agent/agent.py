@@ -56,12 +56,12 @@ Keep it safe, reliable, and well-documented.""",
         )
         
         # Store workspace path in global scope since ADK Agent doesn't allow custom attributes
-        global workspace_path, current_tasks_dir
+        global workspace_path, current_tasks_dir, safe_commands, require_confirmation
         workspace_path = Path(os.getenv("TASK_WORKSPACE_PATH", "./workspace"))
         current_tasks_dir = workspace_path / "current_tasks"
         
-        # Safety settings
-        self.safe_commands = {
+        # Safety settings (global since ADK doesn't allow custom attributes)
+        safe_commands = {
             # Read operations
             'find', 'ls', 'cat', 'head', 'tail', 'grep', 'awk', 'sed', 'sort', 'uniq', 'wc', 'diff',
             # Development tools (read operations)
@@ -73,7 +73,7 @@ Keep it safe, reliable, and well-documented.""",
             'md5sum', 'sha256sum', 'file', 'stat', 'date', 'whoami', 'id'
         }
         
-        self.require_confirmation = {
+        require_confirmation = {
             # Potentially destructive operations
             'rm', 'rmdir', 'mv', 'cp', 'chmod', 'chown', 'sudo',
             'git add', 'git commit', 'git push', 'git pull', 'git merge',
@@ -259,7 +259,7 @@ Keep it safe, reliable, and well-documented.""",
         command_parts = shlex.split(command_lower)
         if command_parts:
             base_command = command_parts[0]
-            for confirm_cmd in self.require_confirmation:
+            for confirm_cmd in require_confirmation:
                 if base_command.startswith(confirm_cmd) or confirm_cmd in command_lower:
                     return {
                         "safe": False,

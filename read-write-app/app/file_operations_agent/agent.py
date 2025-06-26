@@ -12,8 +12,6 @@ from typing import Dict, Any, List, Optional
 from dotenv import load_dotenv
 from google.adk.agents import Agent
 from google.adk.tools import FunctionTool
-from .tools import file_tools
-
 # Load environment variables from root .env
 load_dotenv(dotenv_path="../../../.env")
 
@@ -335,27 +333,40 @@ You monitor the workspace for file-related tasks and execute them autonomously w
             Dict containing commit results
         """
         try:
-            # Use existing git tools from file_tools module
-            if files:
-                # Convert relative paths to full paths for git_tools
-                full_paths = []
-                for file_path in files:
-                    if not file_path.startswith('/'):
-                        full_paths.append(str(workspace_path / file_path))
-                    else:
-                        full_paths.append(file_path)
-                
-                result = file_tools.git_commit_files(full_paths, message)
-            else:
-                # Commit all changes in workspace
-                os.chdir(workspace_path)
-                result = file_tools.git_status()
-                if result.get("success") and result.get("is_dirty"):
-                    result = file_tools.git_commit_files([], message)  # Empty list commits all
-                else:
-                    result = {"success": True, "message": "No changes to commit"}
+            import subprocess
+            import os
             
-            return result
+            # Change to workspace directory
+            original_cwd = os.getcwd()
+            os.chdir(workspace_path)
+            
+            try:
+                # Add files to git
+                if files:
+                    for file_path in files:
+                        subprocess.run(['git', 'add', file_path], check=True)
+                else:
+                    subprocess.run(['git', 'add', '.'], check=True)
+                
+                # Commit changes
+                result = subprocess.run(['git', 'commit', '-m', message], 
+                                      capture_output=True, text=True)
+                
+                if result.returncode == 0:
+                    return {
+                        "success": True,
+                        "message": f"Committed: {message}",
+                        "output": result.stdout
+                    }
+                else:
+                    return {
+                        "success": False,
+                        "error": result.stderr or "Git commit failed"
+                    }
+                    
+            finally:
+                # Restore original directory
+                os.chdir(original_cwd)
             
         except Exception as e:
             return {

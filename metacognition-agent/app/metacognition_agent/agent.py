@@ -54,12 +54,12 @@ Keep it practical, specific, and executable.""",
         )
         
         # Store workspace path in global scope since ADK Agent doesn't allow custom attributes
-        global workspace_path, current_tasks_dir
+        global workspace_path, current_tasks_dir, task_attempts
         workspace_path = Path(os.getenv("TASK_WORKSPACE_PATH", "./workspace"))
         current_tasks_dir = workspace_path / "current_tasks"
         
-        # Track task attempts to detect loops
-        self.task_attempts = {}
+        # Track task attempts to detect loops (global since ADK doesn't allow custom attributes)
+        task_attempts = {}
     
     async def expand_planning_task(self, task_description: str, task_id: str, context: Dict[str, Any] = None) -> Dict[str, Any]:
         """Expand a planning task into detailed, executable steps
@@ -167,10 +167,10 @@ Keep it practical, specific, and executable.""",
             print(f"🔄 Resolving stuck task: {task_id}")
             
             # Track attempts to detect patterns
-            if task_id not in self.task_attempts:
-                self.task_attempts[task_id] = []
+            if task_id not in task_attempts:
+                task_attempts[task_id] = []
             
-            self.task_attempts[task_id].append({
+            task_attempts[task_id].append({
                 "timestamp": datetime.now().isoformat(),
                 "failure_context": failure_context
             })
@@ -182,7 +182,7 @@ Keep it practical, specific, and executable.""",
             alternative = self._create_alternative_approach(task_id, failure_analysis)
             
             # Create new subtask with alternative approach
-            alt_task_id = f"{task_id}-alt-{len(self.task_attempts[task_id])}"
+            alt_task_id = f"{task_id}-alt-{len(task_attempts[task_id])}"
             alt_subtask = self._create_alternative_subtask(alt_task_id, alternative)
             
             # Save alternative subtask
@@ -194,7 +194,7 @@ Keep it practical, specific, and executable.""",
                 "alternative_task_id": alt_task_id,
                 "failure_analysis": failure_analysis,
                 "alternative_approach": alternative,
-                "attempt_number": len(self.task_attempts[task_id])
+                "attempt_number": len(task_attempts[task_id])
             }
             
             print(f"✅ Alternative approach created: {alternative['strategy']}")
@@ -385,7 +385,7 @@ Keep it practical, specific, and executable.""",
     
     def _analyze_failure_pattern(self, task_id: str, failure_context: Dict[str, Any]) -> Dict[str, Any]:
         """Analyze why a task is failing repeatedly"""
-        attempts = self.task_attempts.get(task_id, [])
+        attempts = task_attempts.get(task_id, [])
         
         if len(attempts) >= 3:
             pattern = "chronic_failure"

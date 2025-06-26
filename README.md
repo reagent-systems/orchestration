@@ -1,403 +1,521 @@
-# 🎛️ Orchestration System - Live Agent Control Center
+# 🎛️ Autonomous Agent Orchestration System
 
-**Sophisticated Multi-Agent Orchestration with Real-time Interactive Control**
+A **decentralized multi-agent orchestration platform** built with Google's Agent Development Kit (ADK) that enables autonomous task decomposition, planning, execution, and collaboration through a shared workspace.
 
-A decentralized multi-agent system powered by Google ADK v1.4.2, featuring autonomous task management and a beautiful Textual-based control interface. Watch agents collaborate in real-time through an elegant TUI inspired by Lazygit.
+> **🎯 Core Concept**: No central orchestrator. Agents self-organize and collaborate through filesystem-based communication, creating a truly autonomous system where complex tasks are recursively broken down and executed by specialized agents.
+
+## 📋 Table of Contents
+
+- [🏗️ System Overview](#️-system-overview)
+- [🧩 Agent Architecture](#-agent-architecture) 
+- [🚀 Quick Start](#-quick-start)
+- [📊 Task Flow & Examples](#-task-flow--examples)
+- [🔧 Configuration](#-configuration)
+- [🛠️ Troubleshooting](#️-troubleshooting)
+- [🚀 Future: Tool Genesis](#-future-tool-genesis)
+
+## 🏗️ System Overview
+
+### Core Principles
+
+#### 🔄 **Decentralized Architecture**
+- **No Central Orchestrator**: Agents operate independently
+- **Workspace-Based Communication**: All coordination through shared files
+- **Self-Organizing**: Agents discover and claim tasks autonomously  
+- **Fault-Tolerant**: Individual agent failures don't break the system
+
+#### 🧩 **Recursive Task Decomposition**
+- **Goal → Task → Subtask → Action**: True hierarchical breakdown
+- **Sequential Dependencies**: Each step builds on previous results
+- **Specialized Processing**: Each agent handles specific task types
+- **Dynamic Creation**: Tasks can spawn unlimited subtasks
+
+#### 🤖 **Agent Specialization**
+- **Single Purpose**: Each agent has one specialized function
+- **Real Functionality**: All agents perform actual operations (no simulation)
+- **ADK Integration**: Built on Google's Agent Development Kit v1.4.2
+- **Workspace Integration**: All agents monitor and update shared workspace
+
+### System Architecture
+
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│ TaskBreakdown   │    │ Metacognition   │    │ Terminal        │
+│ Agent           │    │ Agent           │    │ Agent           │
+│                 │    │                 │    │                 │
+│ Decomposes      │    │ Creates         │    │ Executes        │
+│ complex tasks   │    │ detailed plans  │    │ shell commands  │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+         │                       │                       │
+         └───────────────────────┼───────────────────────┘
+                                 │
+                    ┌─────────────────┐
+                    │   WORKSPACE     │
+                    │   (Shared)      │
+                    │                 │
+                    │ • current_tasks │
+                    │ • agent_logs    │
+                    │ • results       │
+                    └─────────────────┘
+                                 │
+         ┌───────────────────────┼───────────────────────┐
+         │                       │                       │
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│ Search          │    │ FileOperations  │    │ [Future Agent]  │
+│ Agent           │    │ Agent           │    │                 │
+│                 │    │                 │    │ Tool Genesis    │
+│ Web searches    │    │ File I/O & Git  │    │ creates new     │
+│ using ADK       │    │ operations      │    │ agents on demand│
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+```
+
+### Directory Structure
+
+```
+orchestration/
+├── 🤖 AGENTS
+│   ├── task-breakdown-agent/     # Decomposes complex tasks
+│   ├── metacognition-agent/      # Strategic planning & coordination
+│   ├── terminal-agent/           # Shell command execution
+│   ├── search-app/              # Web search capabilities
+│   └── read-write-app/          # File operations & git
+│
+├── 📁 WORKSPACE (Shared Communication Layer)
+│   ├── current_tasks/           # Active task queue
+│   ├── agent_logs/             # Activity history
+│   ├── search_results/         # Search outputs
+│   └── shared_context/         # Cross-agent memory
+│
+├── 🔮 FUTURE DEVELOPMENT
+│   ├── exploration/            # Research & analysis
+│   └── agents_upcoming/        # Tool Genesis system
+│
+└── 🛠️ UTILITIES
+    ├── create_test_task.py     # Task creation tool
+    ├── RUN_AGENTS.md          # Quick start guide
+    └── .env                   # Configuration
+```
+
+## 🧩 Agent Architecture
+
+### 🧩 **TaskBreakdownAgent**
+**Purpose**: Decomposes complex tasks into sequential, manageable steps
+
+**Triggers On**:
+- Multi-action descriptions ("analyze and compare", "research and apply")
+- Tasks containing "and", "then", or workflow indicators
+- Complex tasks marked `agent_type: "auto"`
+
+**Example Transformation**:
+```
+Input: "Analyze codebase for syntax flaws and compare with fixes from Stack Overflow"
+
+Output Subtasks:
+1. "Plan analysis strategy for: [original task]" → MetacognitionAgent
+2. "Execute analysis based on plan" → TerminalAgent  
+3. "Research solutions and fixes for found issues" → SearchAgent
+4. "Apply selected solutions" → FileOperationsAgent
+```
+
+### 🧠 **MetacognitionAgent**
+**Purpose**: Creates detailed execution strategies and coordinates complex workflows
+
+**Triggers On**:
+- Tasks with `needs_planning: true`
+- Tasks marked `agent_type: "planning"`
+- "Stuck" tasks needing re-planning
+- Strategic coordination requirements
+
+**Capabilities**:
+- 📋 Strategic planning and approach definition
+- 📊 Resource requirement analysis  
+- ⚠️ Risk assessment and mitigation
+- 📈 Progress monitoring and adaptation
+- 🔄 Workflow optimization
+
+### 💻 **TerminalAgent**
+**Purpose**: Executes shell commands and system operations safely
+
+**Triggers On**:
+- Tasks marked `agent_type: "terminal"`
+- Commands keywords: "run", "execute", "find", "git", "ls", "grep"
+- System-level operations
+- Code analysis and execution tasks
+
+**Safety Features**:
+- ✅ Command validation and safety checks
+- 🚫 Dangerous command blocking (`rm -rf /`, `sudo`, etc.)
+- ⏱️ Execution timeouts and resource limits
+- 🛡️ Sandboxed execution environment
+- 📝 Comprehensive logging
+
+### 🔍 **SearchAgent** 
+**Purpose**: Performs web searches using Google ADK's built-in search
+
+**Triggers On**:
+- Tasks marked `agent_type: "search"`
+- Keywords: "search", "research", "find", "look up", "web search"
+- Information gathering and research tasks
+- External knowledge requirements
+
+**Features**:
+- 🔍 Built-in ADK Google Search (no API keys needed)
+- 📊 Result processing and formatting
+- 🤝 Workspace integration for result sharing
+- 💾 Comprehensive search result storage
+- 🎯 Query optimization and refinement
+
+### 📁 **FileOperationsAgent**
+**Purpose**: Handles all file system operations and git management
+
+**Triggers On**:
+- Tasks marked `agent_type: "file_operations"`
+- Keywords: "read", "write", "create", "delete", "save", "file", "directory"
+- Git operations and version control
+- Code modification and file management
+
+**Capabilities**:
+- 📖 File reading, writing, creation, deletion
+- 📂 Directory management and organization
+- 🔄 Git operations (commit, status, diff, log)
+- ⚡ Batch file processing
+- 📊 Automatic change tracking and commits
 
 ## 🚀 Quick Start
 
-### 1. **Prerequisites**
+### Prerequisites
 ```bash
-# Ensure you have Python 3.9+ and pip installed
-python --version  # Should be 3.9+
-pip --version
+✅ Python 3.9+
+✅ Google ADK v1.4.2
+✅ Git repository initialized  
+✅ Terminal access (5 terminals recommended)
 ```
 
-### 2. **Clone & Setup**
+### Installation
 ```bash
-# Clone the repository (if needed)
+# 1. Clone and setup
+git clone <repository>
 cd orchestration
 
-# Create and activate virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+# 2. Install dependencies  
+pip install -r requirements.txt
 
-# Install all dependencies
-pip install -r interface-agent/requirements.txt
-pip install -r search-app/requirements.txt
-pip install -r read-write-app/requirements.txt
-pip install -r metacognition-agent/requirements.txt
-pip install -r task-breakdown-agent/requirements.txt
-pip install -r terminal-agent/requirements.txt
+# 3. Create environment
+echo "TASK_WORKSPACE_PATH=./workspace" > .env
+echo "GIT_WORKSPACE_PATH=./workspace" >> .env
+
+# 4. Initialize workspace
+mkdir -p workspace/{current_tasks,agent_logs,search_results,shared_context}
 ```
 
-### 3. **Configure Environment**
-   ```bash
-# Copy environment template
-   cp .env.example .env
+### Running the System
 
-# Edit .env file with your preferences (optional - defaults work fine)
-# The system works out-of-the-box with default settings
-   ```
+#### 🎯 **Method 1: Individual Terminals (Recommended)**
 
-### 4. **Launch the Control Center** 🎛️
-```bash
-# Start the interactive interface
-python run_interface.py
-```
-
-**That's it!** The beautiful TUI interface will launch and you can immediately:
-- ✨ Create tasks with `N`
-- 🔍 Edit tasks with `E` 
-- 👀 Watch agents work in real-time
-- 🎮 Control everything with keyboard shortcuts
-
-## 🧠 How Orchestration Works
-
-### **Core Philosophy: Decentralized Autonomous Coordination**
-
-This system implements a **truly decentralized architecture** where agents operate independently without any central orchestrator. Think of it as a "digital ecosystem" where specialized agents collaborate through a shared workspace.
-
-### **🔄 The Orchestration Flow**
-
-#### **1. Task Creation & Decomposition**
-When you create a complex task like:
-> *"Analyze codebase for syntax flaws and search Stack Overflow for fixes"*
-
-The system automatically:
-1. **TaskBreakdownAgent** detects complexity and decomposes it into sequential steps:
-   - `Step 1`: Analyze codebase structure → `planning`
-   - `Step 2`: Check for syntax flaws → `terminal` 
-   - `Step 3`: Search web for fixes → `search`
-   - `Step 4`: Implement fixes → `file`
-
-#### **2. Autonomous Agent Discovery**
-- **MetacognitionAgent** creates detailed execution plans with specific commands
-- **TerminalAgent** executes shell operations safely with validation
-- **SearchAgent** finds solutions using built-in Google Search
-- **FileOperationsAgent** implements changes to your codebase
-
-#### **3. Workspace-Based Communication**
-```
-Human Input → Interface → Workspace Files → Agent Reactions
-     ↑             ↓           ↓              ↓
-  Live TUI ← Live Monitoring ← JSON Tasks ← Autonomous Discovery
-```
-
-**No direct agent communication** - everything flows through the shared workspace:
-- Tasks stored as JSON in `workspace/current_tasks/`
-- Agents monitor workspace every 3 seconds
-- Task claiming prevents conflicts
-- Progress tracked in real-time logs
-
-### **⚡ Real-time Agent Coordination**
-
-#### **Task Lifecycle:**
-1. **Available** → Task created, waiting for agent
-2. **Claimed** → Agent discovers and claims task  
-3. **In Progress** → Agent actively working
-4. **Completed** → Results saved to workspace
-
-#### **Live Task Editing:**
-- Edit any task with `E` in the interface
-- System **automatically interrupts** working agents
-- Task gets **re-queued** for appropriate agent
-- Agents **adapt instantly** to changes
-
-#### **Conflict Resolution:**
-- **Atomic claiming**: Only one agent can claim a task
-- **Timeout handling**: Stuck tasks get released
-- **Dependency tracking**: Sequential task execution
-- **Error recovery**: Failed tasks can be retried
-
-### **🎯 Agent Specialization**
-
-Each agent has a **single, focused responsibility**:
-
-| Agent | Specialization | Capabilities |
-|-------|---------------|-------------|
-| **🎛️ Interface** | Human Control | Task creation, live editing, monitoring |
-| **📊 TaskBreakdown** | Task Analysis | Decomposes complex tasks into sequential steps |
-| **🧠 Metacognition** | Planning | Creates detailed execution strategies with specific commands |
-| **🖥️ Terminal** | Shell Operations | Safe command execution with validation & timeouts |
-| **🔍 Search** | Web Research | Built-in Google Search via ADK (no API keys needed) |
-| **📁 FileOperations** | File Management | Real filesystem operations with git integration |
-
-### **🌊 Example Orchestration Flow**
-
-**User Input:** *"Review my Python code and suggest improvements"*
-
-**🔄 Automatic Orchestration:**
-```
-1. TaskBreakdownAgent → Decomposes into:
-   ├─ analyze-code-structure (metacognition)
-   ├─ run-syntax-check (terminal)  
-   ├─ search-best-practices (search)
-   └─ generate-recommendations (file)
-
-2. MetacognitionAgent → Plans:
-   ├─ "find . -name '*.py' | head -20"
-   ├─ "Analyze project structure and dependencies"
-   └─ "Create analysis strategy"
-
-3. TerminalAgent → Executes:
-   ├─ Safely runs commands
-   ├─ Validates output
-   └─ Saves results to workspace
-
-4. SearchAgent → Researches:
-   ├─ "Python code quality best practices"
-   ├─ "Python linting tools comparison"
-   └─ Saves findings to workspace
-
-5. FileOperationsAgent → Implements:
-   ├─ Creates improvement recommendations
-   ├─ Documents findings
-   └─ Commits results to git
-```
-
-**All happening automatically while you watch in the live interface!** ⚡
-
-### **🛡️ Safety & Reliability**
-
-- **Command Validation**: Terminal agent blocks dangerous operations
-- **Sandboxed Execution**: All operations contained to workspace
-- **Error Handling**: Graceful failure recovery
-- **Interrupt Capability**: Stop any operation instantly
-- **Audit Trail**: Complete history of all actions
-- **Git Integration**: All changes tracked and versioned
-
-### **🎨 Why This Architecture Works**
-
-**✅ Scalable**: Add new agents without changing existing ones  
-**✅ Resilient**: No single point of failure  
-**✅ Transparent**: Every action visible in real-time  
-**✅ Controllable**: Interrupt and modify anything instantly  
-**✅ Extensible**: Easy to add new capabilities  
-**✅ Safe**: Multiple layers of validation and control  
-
-The result is a **living, breathing orchestration system** where intelligent agents collaborate seamlessly while you maintain complete control through an elegant interface! 🎛️
-
-## 🎯 What You'll See
-
-### **Interface Layout**
-```
-┌─ 📋 Task Tree ────────────┬─ 🤖 Agent Status ─────────┐
-│ ⏳ AVAILABLE (1)          │ Agent      Status   Task  │
-│ └─ demo-task-123...       │ Search     Idle     -     │
-│                           │ Terminal   Idle     -     │
-│ 🔄 CLAIMED (0)            │ File Ops   Idle     -     │
-│                           │ Planning   Idle     -     │
-│ ⚡ IN_PROGRESS (0)         │ Breakdown  Idle     -     │
-│                           │                           │
-│ ✅ COMPLETED (0)          │                           │
-├───────────────────────────┼───────────────────────────┤
-│ 📄 Task Details           │ 📊 Live Logs             │
-│ Select a task to view...  │ [Ready for tasks...]      │
-└───────────────────────────┴───────────────────────────┘
-```
-
-### **Keyboard Controls**
-| Key | Action | Description |
-|-----|--------|-------------|
-| `N` | **New Task** | Create a task via modal dialog |
-| `E` | **Edit Task** | Modify selected task (interrupts agents!) |
-| `D` | **Delete Task** | Remove selected task |
-| `↑↓` | **Navigate** | Move through task tree |
-| `R` | **Refresh** | Manual data refresh |
-| `Q` | **Quit** | Exit interface |
-
-## 🎬 Demo Workflow
-
-### **Try This Example:**
-
-1. **Launch Interface**: `python run_interface.py`
-
-2. **Create a Complex Task** (Press `N`):
-   ```
-   Description: "Analyze codebase for syntax flaws and search Stack Overflow for fixes"
-   Agent Type: auto
-   Priority: 3
-   ```
-
-3. **Watch the Magic** ✨:
-   - TaskBreakdownAgent decomposes it into steps
-   - MetacognitionAgent creates execution plans
-   - TerminalAgent analyzes your code
-   - SearchAgent finds solutions online
-   - FileAgent implements fixes
-
-4. **Edit Tasks Live** (Select task, Press `E`):
-   - Modify description mid-execution
-   - Watch agents stop and adapt instantly
-   - See real-time coordination
-
-## 🤖 Available Agents
-
-| Agent | Purpose | Capabilities |
-|-------|---------|-------------|
-| **🎛️ Interface** | Control Center | Live task management, agent monitoring |
-| **📊 TaskBreakdown** | Task Analysis | Decomposes complex tasks into steps |
-| **🧠 Metacognition** | Planning | Creates detailed execution strategies |
-| **🖥️ Terminal** | Shell Operations | Safe command execution with validation |
-| **🔍 Search** | Web Research | Built-in Google Search via ADK |
-| **📁 FileOperations** | File Management | Real filesystem operations |
-
-## 🎯 Use Cases
-
-### **Development Tasks**
-```
-"Review code quality and suggest improvements"
-→ Terminal analyzes code
-→ Search finds best practices  
-→ File creates improvement plan
-```
-
-### **Research Tasks**
-```
-"Research latest Python frameworks and create comparison"
-→ Search gathers information
-→ Metacognition organizes findings
-→ File creates structured report
-```
-
-### **System Administration**
-```
-"Check system health and optimize performance"
-→ Terminal runs diagnostics
-→ Search finds optimization tips
-→ File documents results
-```
-
-## 🔧 Advanced Usage
-
-### **Running Individual Agents**
-If you want to run agents separately:
+Open **5 separate terminals** and run each agent:
 
 ```bash
-# Terminal Agent
-cd terminal-agent && python app/terminal_agent/agent.py
+# 🧩 Terminal 1 - Task Breakdown Agent
+cd task-breakdown-agent/app
+python task_breakdown_agent/agent.py
 
-# Search Agent  
-cd search-app && python app/google_search_agent/agent.py
+# 🧠 Terminal 2 - Metacognition Agent
+cd metacognition-agent/app  
+python metacognition_agent/agent.py
 
-# File Operations Agent
-cd read-write-app && python app/file_operations_agent/agent.py
+# 💻 Terminal 3 - Terminal Agent
+cd terminal-agent/app
+python terminal_agent/agent.py
 
-# Planning Agent
-cd metacognition-agent && python app/metacognition_agent/agent.py
+# 🔍 Terminal 4 - Search Agent  
+cd search-app/app
+python google_search_agent/agent.py
 
-# Task Breakdown Agent
-cd task-breakdown-agent && python app/task_breakdown_agent/agent.py
+# 📁 Terminal 5 - File Operations Agent
+cd read-write-app/app
+python file_operations_agent/agent.py
 ```
 
-### **Workspace Structure**
+Each terminal will show:
 ```
-workspace/
-├── current_tasks/          # Active tasks (JSON + logs)
-├── completed_tasks/        # Finished tasks
-├── agent_logs/            # Agent activity logs  
-├── agent_signals/         # Interrupt signals
-└── search_results/        # Search findings
+🧩 Starting Task Breakdown Agent...
+Specialization: Complex task decomposition
+Framework: Google ADK
+Workspace monitoring: ENABLED
+🔍 task_breakdown_agent monitoring workspace for complex tasks...
 ```
 
-### **Environment Variables**
+#### 🧪 **Method 2: Create Test Tasks**
+
+In a 6th terminal:
 ```bash
-# Model Configuration
-SEARCH_MODEL=gemini-2.0-flash
-METACOGNITION_MODEL=gemini-2.0-flash
-TASK_BREAKDOWN_MODEL=gemini-2.0-flash
-TERMINAL_MODEL=gemini-2.0-flash
-FILE_OPERATIONS_MODEL=gemini-2.0-flash
-INTERFACE_MODEL=gemini-2.0-flash
+# Quick task creation
+python create_test_task.py "Analyze codebase for syntax flaws and compare with fixes from Stack Overflow"
 
-# System Configuration  
+# Interactive mode
+python create_test_task.py
+> Enter task description: Search for Python best practices
+> Agent type [auto]: search
+✅ Created task: test-task-1234567890-search-for-python
+```
+
+#### 👀 **Method 3: Watch the Magic**
+
+1. **File Explorer**: Open `workspace/current_tasks/` and watch:
+   - 📄 Task status changes in `task.json` files
+   - 📁 New subtasks appearing automatically  
+   - 📝 Progress logs updating in real-time
+   - 💾 Results being saved by agents
+
+2. **Terminal Output**: Monitor agent activity:
+   ```
+   🔍 search_agent monitoring workspace...
+   🧩 Found complex task: task-xyz-analyze-codebase
+   ✅ Completed task breakdown into 4 subtasks
+   📝 Created subtask: analyze-strategy-step-01
+   ```
+
+## 📊 Task Flow & Examples
+
+### Task Lifecycle
+```
+created → available → claimed → in_progress → completed
+                   ↘          ↗
+                    failed ← (retry/abort)
+```
+
+### Example Workflows
+
+#### 🔍 **Simple Task: Web Search**
+```
+Task: "Search for Python best practices"
+↓
+SearchAgent detects task → Performs Google search → Saves results to workspace/search_results/ → Updates task status: completed
+```
+
+#### 🧩 **Complex Task: Full Analysis Workflow**
+```
+Original Task: "Analyze codebase for syntax flaws and compare with Stack Overflow fixes"
+↓
+TaskBreakdownAgent creates 4 subtasks:
+├── Subtask 1: "Plan analysis strategy" → MetacognitionAgent
+├── Subtask 2: "Execute codebase analysis" → TerminalAgent  
+├── Subtask 3: "Research Stack Overflow fixes" → SearchAgent
+└── Subtask 4: "Apply selected fixes" → FileOperationsAgent
+↓
+MetacognitionAgent creates detailed strategy → TerminalAgent runs analysis commands → SearchAgent searches for solutions → FileOperationsAgent applies fixes & commits
+↓
+All subtasks complete → Original task marked completed
+```
+
+#### 🔄 **Iterative Refinement**
+```
+Task gets "stuck" (no progress for 5+ minutes)
+↓
+MetacognitionAgent detects stuck task
+↓
+Creates recovery strategy and new approach
+↓  
+Spawns refined subtasks to overcome blockers
+↓
+System continues with improved plan
+```
+
+### Task JSON Structure
+```json
+{
+  "task_id": "task-1750820004-analyze-codebase",
+  "description": "Analyze codebase for syntax flaws and compare with fixes from Stack Overflow",
+  "agent_type": "auto",
+  "status": "available",
+  "priority": 3,
+  "created_at": 1750820004.123,
+  "created_by": "user",
+  "dependencies": [],
+  "claimed_by": null,
+  "claimed_at": null,
+  "completed_at": null,
+  "result": null,
+  "metadata": {
+    "complexity": "high",
+    "estimated_minutes": 15
+  }
+}
+```
+
+## 🔧 Configuration
+
+### Environment Variables (.env)
+```bash
+# 📁 Workspace Configuration
+TASK_WORKSPACE_PATH=./workspace
 GIT_WORKSPACE_PATH=./workspace
+
+# 🤖 Agent Models (defaults to gemini-2.0-flash-live-001)
+SEARCH_MODEL=gemini-2.0-flash-live-001
+TERMINAL_MODEL=gemini-2.0-flash-live-001
+TASK_BREAKDOWN_MODEL=gemini-2.0-flash-live-001
+METACOGNITION_MODEL=gemini-2.0-flash-live-001
+READ_WRITE_MODEL=gemini-2.0-flash-live-001
+
+# ⏱️ Monitoring & Performance
 TASK_MONITOR_INTERVAL=3
+LOG_LEVEL=INFO
+
+# 🔍 Google ADK Integration
+GOOGLE_API_KEY=your-key-here  # Optional for external APIs
 ```
 
-## 🚨 Troubleshooting
+### Agent Behavior Tuning
 
-### **Common Issues**
+Each agent includes configurable parameters:
+- **Task scanning intervals**: How often agents check for new tasks
+- **Safety checks**: Command validation and execution limits
+- **Retry policies**: How agents handle failures
+- **Output formatting**: Result structure and storage
 
-**1. Interface won't start**
+## 🛠️ Troubleshooting
+
+### 🔍 **Common Issues & Solutions**
+
+#### Agents Not Picking Up Tasks
+**Symptoms**: Tasks remain in "available" status
 ```bash
-# Install missing dependencies
-cd interface-agent && pip install -r requirements.txt
+# Check environment
+echo $TASK_WORKSPACE_PATH
 
-# Check Python version
-python --version  # Need 3.9+
-```
-
-**2. No agents responding**
-```bash
-# Verify environment
-cat .env  # Check configuration
-
-# Test workspace
+# Verify workspace structure
 ls -la workspace/current_tasks/
+
+# Check agent terminal output for errors
 ```
 
-**3. Import errors**
+#### Tasks Stuck in Processing
+**Symptoms**: Tasks claim but never complete
 ```bash
-# Reinstall ADK
-pip install google-adk==1.4.2
-
-# Check virtual environment
-which python  # Should be in venv/
-```
-
-**4. Terminal display issues**
-```bash
-# Fix terminal colors
-export TERM=xterm-256color
-
-# Resize terminal (recommended: 120x40 minimum)
-```
-
-### **Debugging Mode**
-```bash
-# Run with verbose output
-PYTHONPATH=. python -v run_interface.py
-
 # Check agent logs
-tail -f workspace/agent_logs/*.log
+ls -la workspace/agent_logs/
+
+# Monitor specific task
+cat workspace/current_tasks/task-xyz/progress.log
+
+# Look for error patterns
+grep -r "ERROR" workspace/agent_logs/
 ```
 
-## 🎉 Success Indicators
+#### Agent Crashes
+**Symptoms**: Agents exit unexpectedly
+```bash
+# Verify ADK installation
+python -c "import google.adk; print('ADK OK')"
 
-**You'll know it's working when:**
-- ✅ Interface launches with beautiful TUI
-- ✅ Demo task appears in task tree
-- ✅ Creating new tasks works (`N` key)
-- ✅ Agents show as "Idle" in status panel
-- ✅ Editing tasks opens modal dialog (`E` key)
-- ✅ Live logs show activity
+# Check Python dependencies
+pip install -r requirements.txt
 
-## 🔗 Architecture
-
-```
-Human Input → Interface Agent → Workspace → Agent Ecosystem
-     ↑              ↓              ↓            ↓
-  Live TUI ← Live Monitoring ← Task Files ← Autonomous Agents
+# Run agent manually for debugging
+cd task-breakdown-agent/app
+python task_breakdown_agent/agent.py
 ```
 
-**Key Features:**
-- 🎯 **Decentralized**: No central orchestrator
-- ⚡ **Real-time**: Live task editing and monitoring  
-- 🤖 **Autonomous**: Agents self-coordinate via workspace
-- 🛡️ **Safe**: Command validation and error handling
-- 🎨 **Beautiful**: Professional TUI interface
+#### File Permission Errors  
+**Symptoms**: Cannot write to workspace
+```bash
+# Fix permissions
+chmod -R 755 workspace/
 
-## 📚 Learn More
+# Check git initialization
+git status
 
-- **[Interface Agent](interface-agent/README.md)** - Detailed TUI documentation
-- **[Search Agent](search-app/README.md)** - Google Search integration
-- **[Terminal Agent](terminal-agent/README.md)** - Safe command execution
-- **[File Agent](read-write-app/README.md)** - Filesystem operations
+# Verify write access
+touch workspace/test_file && rm workspace/test_file
+```
+
+### 🩺 **Health Monitoring**
+
+**Monitor Agent Health**:
+1. **Terminal Output**: Watch for error messages and activity
+2. **Workspace Activity**: Check for new files and updates
+3. **Task Completion**: Monitor success/failure rates
+4. **System Resources**: Ensure sufficient CPU/memory
+
+**Debug Mode**:
+```bash
+export LOG_LEVEL=DEBUG
+# Restart agents for verbose logging
+```
+
+**Performance Metrics**:
+- Task completion rate
+- Average task processing time  
+- Agent uptime and stability
+- Workspace file growth
+
+## 🚀 Future: Tool Genesis
+
+### 🔮 **Next-Generation Agent Creation**
+
+Located in `agents_upcoming/`, the **Tool Genesis System** represents the next evolution:
+
+#### Vision: Agents Creating Agents
+The ultimate goal is **recursive agent creation** where agents can synthesize new agents on demand, leading to infinite capability expansion.
+
+#### Planned Agent Network
+```
+🎯 Agent Synthesizer     - Orchestrates tool creation process
+🔍 API Discovery Agent   - Discovers and analyzes external APIs  
+⚡ Code Generator Agent  - Writes actual code for new agents
+🧩 Template Engine Agent - Manages reusable code patterns
+✅ Validation Agent      - Tests and validates generated agents
+📦 Dependency Manager    - Handles packages and requirements
+🛡️ Security Validator   - Ensures safety and compliance
+🚀 Deployment Agent     - Manages agent lifecycle
+```
+
+#### Example Tool Genesis Flow
+```
+User Request: "I need an agent that can manage Docker containers"
+↓
+Agent Synthesizer → Analyzes requirement
+↓  
+API Discovery → Finds Docker APIs and documentation
+↓
+Code Generator → Creates DockerAgent with ADK integration
+↓
+Validation Agent → Tests the new agent safely
+↓
+Deployment Agent → Integrates agent into orchestration system
+↓
+Result: New DockerAgent automatically available for tasks
+```
+
+### 🗓️ **Development Roadmap**
+
+**Phase 1** (Current): ✅ Core orchestration system
+**Phase 2** (Next): 🔧 Tool Genesis implementation  
+**Phase 3** (Future): 🌐 Multi-workspace collaboration
+**Phase 4** (Vision): 🤖 Fully autonomous agent ecosystem
+
+## 📚 Related Documentation
+
+- 📖 **`RUN_AGENTS.md`** - Quick start guide for running agents
+- 🧪 **`create_test_task.py`** - Tool for creating test tasks  
+- 🔬 **`exploration/`** - Research and analysis of orchestration patterns
+- 🚀 **`agents_upcoming/`** - Future agent development plans and designs
+
+## 🎯 System Status
+
+**Current Status**: ✅ **Core orchestration system fully functional**
+
+**Verified Capabilities**:
+- ✅ Decentralized agent communication through workspace
+- ✅ Recursive task decomposition with proper dependencies  
+- ✅ Real-time task processing and result sharing
+- ✅ Fault-tolerant operation with graceful error handling
+- ✅ Multi-agent collaboration on complex workflows
+- ✅ Workspace-based coordination without central orchestrator
+
+**Next Milestone**: 🚀 Tool Genesis system implementation
 
 ---
 
-**🎛️ Experience the future of orchestration - where intelligent agents collaborate seamlessly through an elegant interface you control in real-time!**
-
-**Ready? Just run:** `python run_interface.py` **and start orchestrating!** 🚀 
+**🎛️ Ready to orchestrate? Start with `python create_test_task.py` and watch your agents come alive!** 
